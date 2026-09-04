@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LyricVault</string>
+    <string name="title_activity_main">LyricVault</string>
+    <string name="package_name">com.lyricvault.app</string>
+    <string name="custom_url_scheme">com.lyricvault.app</string>
+</resources>
