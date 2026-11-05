@@ -1,9 +1,48 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const apkMimePlugin = () => ({
+  name: 'apk-mime-header',
+  configureServer(server: any) {
+    server.middlewares.use((req: any, res: any, next: any) => {
+      if (req.url && req.url.split('?')[0] === '/LyricVault.apk') {
+        const apkPath = path.resolve(process.cwd(), 'LyricVault.apk');
+        if (fs.existsSync(apkPath)) {
+          const stat = fs.statSync(apkPath);
+          res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+          res.setHeader('Content-Disposition', 'attachment; filename="LyricVault.apk"');
+          res.setHeader('Content-Length', stat.size);
+          fs.createReadStream(apkPath).pipe(res);
+          return;
+        }
+      }
+      next();
+    });
+  },
+  configurePreviewServer(server: any) {
+    server.middlewares.use((req: any, res: any, next: any) => {
+      if (req.url && req.url.split('?')[0] === '/LyricVault.apk') {
+        const apkPath = path.resolve(process.cwd(), 'LyricVault.apk');
+        if (fs.existsSync(apkPath)) {
+          const stat = fs.statSync(apkPath);
+          res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+          res.setHeader('Content-Disposition', 'attachment; filename="LyricVault.apk"');
+          res.setHeader('Content-Length', stat.size);
+          fs.createReadStream(apkPath).pipe(res);
+          return;
+        }
+      }
+      next();
+    });
+  }
+});
 
 export default defineConfig({
   plugins: [
+    apkMimePlugin(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -11,7 +50,7 @@ export default defineConfig({
       manifest: {
         name: 'LyricVault - Offline Android Lyrics Manager',
         short_name: 'LyricVault',
-        description: 'Offline-first synchronized and plain lyrics manager with LRCLIB & Open Lyrics',
+        description: 'Offline-first song lyric notebook with LRCLIB & Open Lyrics',
         theme_color: '#0a0a0a',
         background_color: '#0a0a0a',
         display: 'standalone',

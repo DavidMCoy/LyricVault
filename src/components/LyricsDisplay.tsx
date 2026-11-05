@@ -1,93 +1,74 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Play, Pause, FastForward, Rewind, Upload, 
-  Maximize2, Minimize2, ArrowLeft, Zap, Star
+  Play, Pause, ArrowLeft, Zap, Star, Edit3, X, Plus, BookOpen
 } from 'lucide-react';
-import { Song, SyncedLine, DisplayMode, FontSizeOption } from '../types/lyrics';
-import { parseLRC, getActiveLineIndex, formatTimeDisplay } from '../utils/lrcParser';
+import { Song, FontSizeOption } from '../types/lyrics';
+import { parseLRC } from '../utils/lrcParser';
 import { wakeLock } from '../utils/wakeLock';
-import { saveSong, toggleFavorite, saveAudioFile, getAudioFile } from '../services/db';
+import { toggleFavorite } from '../services/db';
 
 interface LyricsDisplayProps {
   song: Song | null;
+  openSongs?: Song[];
+  onSelectOpenSong?: (song: Song) => void;
+  onCloseOpenSong?: (songId: string, e: React.MouseEvent) => void;
   onBack: () => void;
   onEditSong?: (song: Song) => void;
 }
 
-export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({ song, onBack }) => {
+const TAB_ACCENTS = [
+  'border-t-amber-400',
+  'border-t-emerald-400',
+  'border-t-sky-400',
+  'border-t-rose-400',
+  'border-t-violet-400',
+];
+
+export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
+  song,
+  openSongs = [],
+  onSelectOpenSong,
+  onCloseOpenSong,
+  onBack,
+  onEditSong,
+}) => {
   if (!song) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center text-neutral-400">
-        <p className="text-sm">No song selected.</p>
+      <div className="flex flex-col items-center justify-center min-h-[65vh] p-6 text-center text-neutral-400">
+        <div className="w-12 h-12 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center mb-3 text-amber-400">
+          <BookOpen className="w-6 h-6" />
+        </div>
+        <p className="text-sm font-bold text-neutral-200">No Lyric Sheet Open</p>
+        <p className="text-xs text-neutral-400 mt-1 max-w-xs">
+          Select any song from your Notebook Index or Setlists to open its lyric sheet.
+        </p>
         <button
           onClick={onBack}
-          className="mt-4 px-4 py-2 bg-neutral-800 text-neutral-200 rounded-xl text-xs font-semibold"
+          className="mt-4 px-4 py-2 bg-amber-500 text-black rounded-xl text-xs font-bold shadow-md shadow-amber-950/50"
         >
-          Go to Library
+          Open Notebook Index
         </button>
       </div>
     );
   }
 
-  // View & Playback State
   const [currentSong, setCurrentSong] = useState<Song>(song);
-  const [viewMode, setViewMode] = useState<DisplayMode>(
-    song.syncedLyrics && song.syncedLyrics.trim().length > 0 ? 'synced' : 'plain'
-  );
-  const [fontSize, setFontSize] = useState<FontSizeOption>('xl');
-  const [currentTime, setCurrentTime] = useState<number>(0);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [duration, setDuration] = useState<number>(song.duration || 180);
-  const [offsetMs, setOffsetMs] = useState<number>(song.offsetMs || 0);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [fontSize, setFontSize] = useState<FontSizeOption>('lg');
   const [isWakeLockActive, setIsWakeLockActive] = useState<boolean>(true);
   const [teleprompterSpeed, setTeleprompterSpeed] = useState<number>(1);
-  const [isTeleprompterRunning, setIsTeleprompterRunning] = useState<boolean>(false);
+  const [isAutoScrolling, setIsAutoScrolling] = useState<boolean>(false);
 
-  // Audio integration
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [audioFileName, setAudioFileName] = useState<string | null>(song.audioFileName || null);
-
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const activeLineRef = useRef<HTMLDivElement | null>(null);
-  const teleprompterIntervalRef = useRef<any>(null);
+  const scrollIntervalRef = useRef<any>(null);
 
-  // Parse lyrics
-  const parsed = parseLRC(currentSong.syncedLyrics || currentSong.plainLyrics || '');
-  const lines: SyncedLine[] = parsed.lines.length > 0 
-    ? parsed.lines 
-    : (currentSong.plainLyrics || '').split('\n').filter(Boolean).map((text, idx) => ({
-        time: idx * 4,
-        text,
-      }));
-
-  const activeLineIndex = parsed.hasSync
-    ? getActiveLineIndex(lines, currentTime, offsetMs)
-    : -1;
-
-  // Sync song changes
+  // Sync when song prop changes
   useEffect(() => {
     setCurrentSong(song);
-    setOffsetMs(song.offsetMs || 0);
-    if (song.duration) setDuration(song.duration);
-
-    // Try loading cached audio if present
-    if (song.audioFileBlobKey) {
-      loadCachedAudio(song.audioFileBlobKey);
-    }
+    setIsAutoScrolling(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [song]);
 
-  const loadCachedAudio = async (blobKey: string) => {
-    const record = await getAudioFile(blobKey);
-    if (record) {
-      const url = URL.createObjectURL(record.blob);
-      setAudioUrl(url);
-      setAudioFileName(record.fileName);
-    }
-  };
-
-  // Screen Wake Lock initialization
+  // Screen Wake Lock
   useEffect(() => {
     if (isWakeLockActive) {
       wakeLock.request();
@@ -99,410 +80,225 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({ song, onBack }) =>
     };
   }, [isWakeLockActive]);
 
-  // Handle Play/Pause simulation timer or audio
+  // Hands-free Auto-Scroll
   useEffect(() => {
-    let interval: any = null;
-
-    if (isPlaying) {
-      if (audioRef.current && audioUrl) {
-        audioRef.current.play().catch(() => {});
-      } else {
-        // Simulated timer if no audio file is loaded
-        interval = setInterval(() => {
-          setCurrentTime((prev) => {
-            if (prev >= duration) {
-              setIsPlaying(false);
-              return 0;
-            }
-            return prev + 0.1;
-          });
-        }, 100);
-      }
+    if (isAutoScrolling) {
+      scrollIntervalRef.current = setInterval(() => {
+        window.scrollBy({ top: teleprompterSpeed, behavior: 'auto' });
+      }, 35);
     } else {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      if (interval) clearInterval(interval);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isPlaying, audioUrl, duration]);
-
-  // Sync audio element time to currentTime state
-  const handleAudioTimeUpdate = () => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-      if (audioRef.current.duration && !isNaN(audioRef.current.duration)) {
-        setDuration(audioRef.current.duration);
-      }
-    }
-  };
-
-  // Smooth scroll active line into view in Synced Mode
-  useEffect(() => {
-    if (viewMode === 'synced' && activeLineRef.current) {
-      activeLineRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
-    }
-  }, [activeLineIndex, viewMode]);
-
-  // Teleprompter smooth auto-scroll for Plain Mode
-  useEffect(() => {
-    if (isTeleprompterRunning && viewMode === 'plain') {
-      teleprompterIntervalRef.current = setInterval(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTop += teleprompterSpeed;
-        }
-      }, 30);
-    } else {
-      if (teleprompterIntervalRef.current) {
-        clearInterval(teleprompterIntervalRef.current);
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
       }
     }
     return () => {
-      if (teleprompterIntervalRef.current) clearInterval(teleprompterIntervalRef.current);
+      if (scrollIntervalRef.current) clearInterval(scrollIntervalRef.current);
     };
-  }, [isTeleprompterRunning, teleprompterSpeed, viewMode]);
-
-  // Audio file upload handler
-  const handleAudioFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const blobKey = `audio-${currentSong.id}`;
-    await saveAudioFile(blobKey, file);
-
-    const updatedSong = {
-      ...currentSong,
-      audioFileName: file.name,
-      audioFileBlobKey: blobKey,
-    };
-    await saveSong(updatedSong);
-    setCurrentSong(updatedSong);
-
-    const url = URL.createObjectURL(file);
-    setAudioUrl(url);
-    setAudioFileName(file.name);
-  };
-
-  const handleSeek = (newTime: number) => {
-    const clamped = Math.max(0, Math.min(newTime, duration));
-    setCurrentTime(clamped);
-    if (audioRef.current) {
-      audioRef.current.currentTime = clamped;
-    }
-  };
-
-  const handleAdjustOffset = async (deltaMs: number) => {
-    const newOffset = offsetMs + deltaMs;
-    setOffsetMs(newOffset);
-    const updated = { ...currentSong, offsetMs: newOffset };
-    setCurrentSong(updated);
-    await saveSong(updated);
-  };
+  }, [isAutoScrolling, teleprompterSpeed]);
 
   const handleToggleFav = async () => {
     const newFav = await toggleFavorite(currentSong.id);
     setCurrentSong(prev => ({ ...prev, isFavorite: newFav }));
   };
 
+  // Extract clean plain text lyrics (stripping any LRC timestamps if plainLyrics is empty)
+  const cleanLyrics = React.useMemo(() => {
+    if (currentSong.plainLyrics && currentSong.plainLyrics.trim().length > 0) {
+      return currentSong.plainLyrics.trim();
+    }
+    if (currentSong.syncedLyrics && currentSong.syncedLyrics.trim().length > 0) {
+      const parsed = parseLRC(currentSong.syncedLyrics);
+      return parsed.plainText || currentSong.syncedLyrics;
+    }
+    return 'No lyrics available for this song.';
+  }, [currentSong]);
+
   const fontSizes: Record<FontSizeOption, string> = {
-    sm: 'text-sm leading-relaxed',
-    base: 'text-base leading-relaxed',
-    lg: 'text-lg leading-relaxed',
-    xl: 'text-xl md:text-2xl leading-relaxed',
-    '2xl': 'text-2xl md:text-3xl leading-relaxed',
-    '3xl': 'text-3xl md:text-4xl leading-loose font-bold',
+    sm: 'text-sm leading-7',
+    base: 'text-base leading-8',
+    lg: 'text-lg leading-8',
+    xl: 'text-xl leading-9',
+    '2xl': 'text-2xl leading-10',
+    '3xl': 'text-3xl leading-[3rem]',
   };
 
   return (
-    <div className={`flex flex-col min-h-[90vh] pb-32 animate-fade-in ${isFullscreen ? 'fixed inset-0 z-50 bg-neutral-950 pb-20' : ''}`}>
-      {/* Hidden HTML5 Audio Element */}
-      {audioUrl && (
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          onTimeUpdate={handleAudioTimeUpdate}
-          onEnded={() => setIsPlaying(false)}
-        />
-      )}
-
-      {/* Top Toolbar */}
-      <div className="bg-neutral-900/90 backdrop-blur-md border-b border-neutral-800 p-3 px-4 flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center gap-2 min-w-0">
+    <div className="flex flex-col min-h-[90vh] pb-32 animate-fade-in">
+      {/* Top Sticky Notebook Bar: Open Song Tabs + Reader Controls */}
+      <div className="sticky top-0 z-30 bg-neutral-950/95 backdrop-blur-md border-b border-neutral-800 shadow-lg">
+        {/* Binder Tabs Bar for Open Songs */}
+        <div className="flex items-center gap-1 px-2 pt-2 overflow-x-auto bg-neutral-950 border-b border-neutral-800/80">
           <button
             onClick={onBack}
-            className="p-1.5 rounded-xl text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-t-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-semibold border-t border-x border-neutral-800 shrink-0"
+            title="Back to Notebook Index"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
+            <span>Index</span>
           </button>
-          <div className="min-w-0 pr-2">
-            <h2 className="text-sm font-bold text-neutral-100 break-words leading-tight">{currentSong.trackName}</h2>
-            <p className="text-xs text-neutral-400 break-words mt-0.5 leading-snug">
-              {currentSong.artistName} {currentSong.albumName ? `• ${currentSong.albumName}` : ''}
-            </p>
-          </div>
+
+          {openSongs.map((tabSong, idx) => {
+            const isActive = tabSong.id === currentSong.id;
+            const accent = TAB_ACCENTS[idx % TAB_ACCENTS.length];
+            return (
+              <div
+                key={tabSong.id}
+                onClick={() => onSelectOpenSong && onSelectOpenSong(tabSong)}
+                className={`group flex items-center gap-2 px-3 py-1.5 rounded-t-xl border-t-2 border-x cursor-pointer shrink-0 max-w-[180px] transition-all ${accent} ${
+                  isActive
+                    ? 'bg-neutral-900 border-x-neutral-700 text-amber-300 font-bold shadow-sm -mb-px pb-2'
+                    : 'bg-neutral-950/60 border-x-neutral-800/70 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50'
+                }`}
+              >
+                <span className="text-xs truncate">{tabSong.trackName}</span>
+                {onCloseOpenSong && (
+                  <button
+                    onClick={(e) => onCloseOpenSong(tabSong.id, e)}
+                    className="p-0.5 rounded hover:bg-neutral-700/60 text-neutral-500 hover:text-red-400"
+                    title="Close tab"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+
+          <button
+            onClick={onBack}
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-amber-400 hover:bg-neutral-900 shrink-0 ml-0.5"
+            title="Open another song from Index"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Action icons */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={handleToggleFav}
-            className={`p-1.5 rounded-xl transition-all ${
-              currentSong.isFavorite ? 'text-amber-400 bg-amber-950/40' : 'text-neutral-400 hover:text-neutral-200'
-            }`}
-          >
-            <Star className={`w-4 h-4 ${currentSong.isFavorite ? 'fill-amber-400' : ''}`} />
-          </button>
-
-          <button
-            onClick={() => setIsWakeLockActive(!isWakeLockActive)}
-            title={isWakeLockActive ? "Screen Awake ON" : "Screen Awake OFF"}
-            className={`p-1.5 rounded-xl transition-all ${
-              isWakeLockActive ? 'text-emerald-400 bg-emerald-950/50' : 'text-neutral-500'
-            }`}
-          >
-            <Zap className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 rounded-xl text-neutral-400 hover:text-neutral-100 transition-colors"
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Mode Selectors & Controls */}
-      <div className="px-4 py-2.5 bg-neutral-925 border-b border-neutral-800/80 flex items-center justify-between gap-2 overflow-x-auto text-xs">
-        {/* View Mode Toggle */}
-        <div className="flex items-center bg-neutral-900 rounded-xl p-1 border border-neutral-800 shrink-0">
-          {parsed.hasSync && (
+        {/* Notebook Sheet Toolbar: Font Size, Auto-Scroll, Favorite, Edit */}
+        <div className="px-3 py-2 bg-neutral-900/95 flex items-center justify-between gap-2 flex-wrap">
+          {/* Font Size Controls */}
+          <div className="flex items-center gap-1">
             <button
-              onClick={() => setViewMode('synced')}
-              className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                viewMode === 'synced' ? 'bg-emerald-500 text-black font-bold shadow-sm' : 'text-neutral-400'
+              onClick={() => {
+                const sizes: FontSizeOption[] = ['sm', 'base', 'lg', 'xl', '2xl', '3xl'];
+                const currIdx = sizes.indexOf(fontSize);
+                if (currIdx > 0) setFontSize(sizes[currIdx - 1]);
+              }}
+              className="px-2.5 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 font-bold text-xs flex items-center justify-center active:scale-95"
+              title="Decrease Font Size"
+            >
+              A-
+            </button>
+            <button
+              onClick={() => {
+                const sizes: FontSizeOption[] = ['sm', 'base', 'lg', 'xl', '2xl', '3xl'];
+                const currIdx = sizes.indexOf(fontSize);
+                if (currIdx < sizes.length - 1) setFontSize(sizes[currIdx + 1]);
+              }}
+              className="px-2.5 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 font-bold text-xs flex items-center justify-center active:scale-95"
+              title="Increase Font Size"
+            >
+              A+
+            </button>
+          </div>
+
+          {/* Hands-Free Auto-Scroll Controls */}
+          <div className="flex items-center gap-1.5 bg-neutral-950/80 border border-neutral-800 rounded-xl px-2 py-1">
+            <button
+              onClick={() => setIsAutoScrolling(!isAutoScrolling)}
+              className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg transition-all active:scale-95 ${
+                isAutoScrolling
+                  ? 'bg-amber-500 text-black'
+                  : 'bg-neutral-800 text-neutral-300 hover:text-neutral-100'
               }`}
             >
-              Karaoke Sync
+              {isAutoScrolling ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
+              <span>Scroll</span>
             </button>
-          )}
-          <button
-            onClick={() => setViewMode('plain')}
-            className={`px-3 py-1 rounded-lg font-medium transition-all ${
-              viewMode === 'plain' ? 'bg-emerald-500 text-black font-bold shadow-sm' : 'text-neutral-400'
-            }`}
-          >
-            Plain / Prompter
-          </button>
-          <button
-            onClick={() => setViewMode('stage')}
-            className={`px-3 py-1 rounded-lg font-medium transition-all ${
-              viewMode === 'stage' ? 'bg-emerald-500 text-black font-bold shadow-sm' : 'text-neutral-400'
-            }`}
-          >
-            Stage Mode
-          </button>
-        </div>
 
-        {/* Font Size Selector */}
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={() => {
-              const sizes: FontSizeOption[] = ['sm', 'base', 'lg', 'xl', '2xl', '3xl'];
-              const currIdx = sizes.indexOf(fontSize);
-              if (currIdx > 0) setFontSize(sizes[currIdx - 1]);
-            }}
-            className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-300 font-bold text-xs flex items-center justify-center hover:bg-neutral-800"
-          >
-            A-
-          </button>
-          <button
-            onClick={() => {
-              const sizes: FontSizeOption[] = ['sm', 'base', 'lg', 'xl', '2xl', '3xl'];
-              const currIdx = sizes.indexOf(fontSize);
-              if (currIdx < sizes.length - 1) setFontSize(sizes[currIdx + 1]);
-            }}
-            className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-300 font-bold text-sm flex items-center justify-center hover:bg-neutral-800"
-          >
-            A+
-          </button>
-        </div>
-      </div>
-
-      {/* Main Lyrics View Container */}
-      <div
-        ref={containerRef}
-        className={`flex-1 overflow-y-auto px-6 py-8 transition-colors select-none ${
-          viewMode === 'stage' ? 'bg-black text-amber-100 font-sans' : 'bg-neutral-950'
-        }`}
-      >
-        {/* Synced Karaoke View */}
-        {viewMode === 'synced' && (
-          <div className="max-w-xl mx-auto space-y-6 text-center py-12">
-            {lines.map((line, idx) => {
-              const isActive = idx === activeLineIndex;
-              const isPast = activeLineIndex > -1 && idx < activeLineIndex;
-              return (
-                <div
-                  key={idx}
-                  ref={isActive ? activeLineRef : null}
-                  onClick={() => handleSeek(line.time)}
-                  className={`cursor-pointer transition-all duration-300 rounded-2xl p-2.5 ${fontSizes[fontSize]} ${
-                    isActive
-                      ? 'text-emerald-400 font-extrabold scale-105 drop-shadow-[0_0_20px_rgba(52,211,153,0.35)] bg-emerald-950/20'
-                      : isPast
-                      ? 'text-neutral-500 opacity-60'
-                      : 'text-neutral-400 opacity-80 hover:text-neutral-200'
-                  }`}
-                >
-                  <p className="break-words">{line.text || '♪'}</p>
-                  {line.translation && (
-                    <p className="text-xs font-normal text-emerald-300/70 mt-1 break-words">{line.translation}</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Plain Text & Teleprompter View */}
-        {(viewMode === 'plain' || viewMode === 'stage') && (
-          <div className={`max-w-xl mx-auto whitespace-pre-wrap ${fontSizes[fontSize]} ${
-            viewMode === 'stage' ? 'font-mono text-center leading-loose font-bold' : 'leading-relaxed'
-          }`}>
-            {currentSong.plainLyrics || parsed.plainText || 'No plain lyrics found.'}
-          </div>
-        )}
-      </div>
-
-      {/* Teleprompter Floating Controls for Plain Mode */}
-      {viewMode === 'plain' && (
-        <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-30 bg-neutral-900/90 border border-neutral-700 backdrop-blur-md rounded-2xl px-4 py-2 flex items-center gap-3 shadow-xl">
-          <button
-            onClick={() => setIsTeleprompterRunning(!isTeleprompterRunning)}
-            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500 text-black active:scale-95"
-          >
-            {isTeleprompterRunning ? <Pause className="w-3.5 h-3.5 fill-black" /> : <Play className="w-3.5 h-3.5 fill-black" />}
-            Auto Scroll
-          </button>
-          <div className="flex items-center gap-1 text-xs text-neutral-400">
-            <span>Speed:</span>
             {[1, 2, 3, 4].map((spd) => (
               <button
                 key={spd}
                 onClick={() => setTeleprompterSpeed(spd)}
-                className={`w-6 h-6 rounded-lg text-xs font-semibold ${
-                  teleprompterSpeed === spd ? 'bg-emerald-500 text-black' : 'bg-neutral-800 text-neutral-300'
+                className={`w-6 h-6 rounded-md text-[11px] font-bold transition-colors ${
+                  teleprompterSpeed === spd
+                    ? 'bg-amber-500/20 border border-amber-500/50 text-amber-300'
+                    : 'text-neutral-400 hover:text-neutral-200'
                 }`}
               >
                 {spd}x
               </button>
             ))}
           </div>
+
+          {/* Right Action Icons: Favorite, Edit, Screen Awake */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleToggleFav}
+              className={`p-1.5 rounded-lg transition-all ${
+                currentSong.isFavorite ? 'text-amber-400 bg-amber-950/40' : 'text-neutral-400 hover:text-neutral-200'
+              }`}
+              title="Favorite"
+            >
+              <Star className={`w-4 h-4 ${currentSong.isFavorite ? 'fill-amber-400' : ''}`} />
+            </button>
+
+            {onEditSong && (
+              <button
+                onClick={() => onEditSong(currentSong)}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-amber-400 hover:bg-neutral-800 transition-colors"
+                title="Edit Lyrics"
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
+            )}
+
+            <button
+              onClick={() => setIsWakeLockActive(!isWakeLockActive)}
+              title={isWakeLockActive ? 'Screen Awake ON' : 'Screen Awake OFF'}
+              className={`p-1.5 rounded-lg transition-all ${
+                isWakeLockActive ? 'text-emerald-400 bg-emerald-950/40' : 'text-neutral-500'
+              }`}
+            >
+              <Zap className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* Floating Karaoke / Audio Bottom Player Bar */}
-      {viewMode === 'synced' && (
-        <div className="fixed bottom-14 left-0 right-0 z-30 bg-neutral-900/95 backdrop-blur-lg border-t border-neutral-800 px-4 py-3 shadow-2xl">
-          <div className="max-w-md mx-auto space-y-2">
-            {/* Scrubber & Timestamps */}
-            <div className="flex items-center gap-2.5">
-              <span className="text-[11px] font-mono text-neutral-400 shrink-0 w-10 text-right">
-                {formatTimeDisplay(currentTime)}
-              </span>
+      {/* Notebook Page Body */}
+      <div ref={containerRef} className="flex-1 px-3 sm:px-6 py-4 max-w-2xl w-full mx-auto">
+        <div className="relative bg-neutral-900/90 border border-neutral-800 rounded-2xl shadow-xl overflow-hidden">
+          {/* Left Red/Amber Notebook Margin Line */}
+          <div className="absolute top-0 bottom-0 left-6 sm:left-8 w-px bg-amber-500/25 pointer-events-none" />
 
-              <input
-                type="range"
-                min={0}
-                max={duration || 180}
-                step={0.1}
-                value={currentTime}
-                onChange={(e) => handleSeek(parseFloat(e.target.value))}
-                className="flex-1 accent-emerald-500 h-1.5 bg-neutral-700 rounded-lg cursor-pointer"
-              />
+          {/* Notebook Binder Holes Visual Accent */}
+          <div className="absolute top-6 bottom-6 left-2 sm:left-3 flex flex-col justify-between pointer-events-none opacity-40">
+            <span className="w-2.5 h-2.5 rounded-full bg-neutral-950 border border-neutral-700" />
+            <span className="w-2.5 h-2.5 rounded-full bg-neutral-950 border border-neutral-700" />
+            <span className="w-2.5 h-2.5 rounded-full bg-neutral-950 border border-neutral-700" />
+          </div>
 
-              <span className="text-[11px] font-mono text-neutral-400 shrink-0 w-10">
-                {formatTimeDisplay(duration)}
-              </span>
-            </div>
+          {/* Song Title & Artist Header on the Notebook Sheet */}
+          <div className="pl-10 sm:pl-12 pr-5 pt-5 pb-4 border-b border-neutral-800/90 bg-neutral-900">
+            <h1 className="text-lg sm:text-xl font-extrabold text-neutral-100 break-words leading-snug">
+              {currentSong.trackName}
+            </h1>
+            <p className="text-xs sm:text-sm text-amber-400/90 font-semibold break-words mt-1">
+              {currentSong.artistName}
+              {currentSong.albumName ? (
+                <span className="text-neutral-400 font-normal"> • {currentSong.albumName}</span>
+              ) : null}
+            </p>
+          </div>
 
-            {/* Playback Controls & Audio Binding */}
-            <div className="flex items-center justify-between">
-              {/* Offset Adjuster */}
-              <div className="flex items-center gap-1 text-[10px]">
-                <button
-                  onClick={() => handleAdjustOffset(-500)}
-                  className="px-1.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-                  title="Offset -0.5s"
-                >
-                  -0.5s
-                </button>
-                <span className="font-mono text-emerald-400 min-w-8 text-center">
-                  {offsetMs !== 0 ? `${offsetMs > 0 ? '+' : ''}${offsetMs / 1000}s` : 'Sync'}
-                </span>
-                <button
-                  onClick={() => handleAdjustOffset(500)}
-                  className="px-1.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-                  title="Offset +0.5s"
-                >
-                  +0.5s
-                </button>
-              </div>
-
-              {/* Main Play / Pause & Rewind Buttons */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleSeek(currentTime - 5)}
-                  className="p-1.5 text-neutral-400 hover:text-neutral-200 active:scale-90"
-                  title="Rewind 5s"
-                >
-                  <Rewind className="w-5 h-5" />
-                </button>
-
-                <button
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  className="w-11 h-11 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center shadow-lg shadow-emerald-950 active:scale-95 transition-transform"
-                >
-                  {isPlaying ? (
-                    <Pause className="w-5 h-5 fill-black" />
-                  ) : (
-                    <Play className="w-5 h-5 fill-black ml-0.5" />
-                  )}
-                </button>
-
-                <button
-                  onClick={() => handleSeek(currentTime + 5)}
-                  className="p-1.5 text-neutral-400 hover:text-neutral-200 active:scale-90"
-                  title="Forward 5s"
-                >
-                  <FastForward className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Load Audio from Phone Storage */}
-              <div>
-                <label className="cursor-pointer flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300">
-                  <Upload className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="max-w-[70px] truncate">{audioFileName || 'Link MP3'}</span>
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    onChange={handleAudioFileUpload}
-                    className="hidden"
-                  />
-                </label>
-              </div>
+          {/* Lyrics Content Area */}
+          <div className="pl-10 sm:pl-12 pr-5 py-6">
+            <div className={`whitespace-pre-wrap break-words text-neutral-100 font-sans tracking-wide ${fontSizes[fontSize]}`}>
+              {cleanLyrics}
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

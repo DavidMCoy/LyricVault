@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Play, Bookmark, BookmarkCheck, Star, MoreVertical, Download, Music, Edit3, Trash2, ListPlus, Radio } from 'lucide-react';
+import { BookOpen, Bookmark, BookmarkCheck, Star, MoreVertical, Download, FileText, Edit3, Trash2, ListPlus } from 'lucide-react';
 import { Song, SearchResultItem } from '../types/lyrics';
-import { formatTimeDisplay } from '../utils/lrcParser';
 import { downloadSongLyrics } from '../utils/exportImport';
 
 interface SongCardProps {
@@ -30,69 +29,52 @@ export const SongCard: React.FC<SongCardProps> = ({
   showSaveButton = true,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
-  const hasSynced = Boolean(song.syncedLyrics && song.syncedLyrics.trim().length > 0);
 
   return (
-    <div className="relative group bg-neutral-900/80 hover:bg-neutral-850 border border-neutral-800/90 hover:border-neutral-700 rounded-2xl p-3.5 transition-all duration-200 shadow-sm active:bg-neutral-800">
-      {/* Top Header Row: Badges, Sound Icon on Left; Play, Star, Save, Dot-Dot-Dot on Right */}
-      <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-neutral-800/50">
-        {/* Left: Sound Type & Format Badges */}
+    <div className="relative group bg-neutral-900/85 hover:bg-neutral-850 border border-neutral-800/90 hover:border-amber-500/40 border-l-4 border-l-amber-500/70 rounded-r-2xl rounded-l-md p-3.5 transition-all duration-200 shadow-sm active:bg-neutral-800">
+      {/* Top Header Row: Notebook Badge on Left; Open, Save, Star, Dot-Dot-Dot on Right */}
+      <div className="flex items-center justify-between gap-2 pb-2 border-b border-neutral-800/60">
+        {/* Left: Notebook Sheet Icon & Status */}
         <div className="flex items-center gap-2 min-w-0 flex-wrap">
-          <div className="w-7 h-7 rounded-lg bg-neutral-800 border border-neutral-700/60 flex items-center justify-center shrink-0 shadow-inner">
-            {hasSynced ? (
-              <Radio className="w-4 h-4 text-emerald-400" />
-            ) : (
-              <Music className="w-4 h-4 text-neutral-400" />
-            )}
+          <div className="w-7 h-7 rounded-lg bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center shrink-0">
+            <FileText className="w-3.5 h-3.5 text-amber-400" />
           </div>
 
-          {hasSynced ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-950/80 border border-emerald-800/60 text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              SYNCED LRC
-            </span>
-          ) : (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-neutral-800 text-neutral-400">
-              PLAIN
-            </span>
-          )}
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+            Lyric Sheet
+          </span>
 
-          {song.duration && song.duration > 0 ? (
-            <span className="text-[10px] text-neutral-400 font-mono">
-              {formatTimeDisplay(song.duration)}
-            </span>
-          ) : null}
-
-          {isSaved && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-blue-950/60 border border-blue-900/40 text-blue-400">
-              SAVED
+          {isSaved && showSaveButton && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-emerald-950/60 border border-emerald-900/40 text-emerald-400">
+              IN NOTEBOOK
             </span>
           )}
         </div>
 
-        {/* Right: Sound, Play, Star, Bookmark, and More (Dot Dot Dot) Action Icons */}
+        {/* Right: Open, Bookmark, Star, and More (Dot Dot Dot) Action Icons */}
         <div className="flex items-center gap-1 shrink-0">
-          {/* Play / View Button */}
+          {/* Open Lyric Sheet Button */}
           <button
             onClick={onSelect}
-            aria-label="Play and display lyrics"
-            className="w-8 h-8 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-black flex items-center justify-center transition-all active:scale-90 border border-emerald-500/20"
-            title="Display Lyrics"
+            aria-label="Open lyric sheet"
+            className="px-2.5 h-8 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-black text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 border border-amber-500/30"
+            title="Open Lyric Sheet"
           >
-            <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Read</span>
           </button>
 
           {/* Save / Bookmark Button */}
           {showSaveButton && onSave && (
             <button
               onClick={onSave}
-              aria-label={isSaved ? "Saved to Library" : "Save to Library"}
+              aria-label={isSaved ? "Saved to Notebook" : "Save to Notebook"}
               className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
                 isSaved
                   ? 'text-emerald-400 bg-emerald-950/50 border border-emerald-800/50'
                   : 'text-neutral-400 hover:text-neutral-200 bg-neutral-800/60 hover:bg-neutral-800'
               }`}
-              title={isSaved ? "Saved to Library" : "Save to Library"}
+              title={isSaved ? "Saved to Notebook" : "Save to Notebook"}
             >
               {isSaved ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
             </button>
@@ -130,13 +112,13 @@ export const SongCard: React.FC<SongCardProps> = ({
                   className="fixed inset-0 z-20" 
                   onClick={() => setShowMenu(false)} 
                 />
-                <div className="absolute right-0 top-9 z-30 w-48 bg-neutral-850 border border-neutral-700 rounded-2xl shadow-2xl py-1 text-xs animate-fade-in">
+                <div className="absolute right-0 top-9 z-30 w-48 bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl py-1 text-xs animate-fade-in">
                   {onAddToPlaylist && (
                     <button
                       onClick={() => { setShowMenu(false); onAddToPlaylist(); }}
-                      className="w-full text-left px-3.5 py-2.5 text-neutral-200 hover:bg-neutral-750 flex items-center gap-2.5"
+                      className="w-full text-left px-3.5 py-2.5 text-neutral-200 hover:bg-neutral-800 flex items-center gap-2.5"
                     >
-                      <ListPlus className="w-4 h-4 text-emerald-400" />
+                      <ListPlus className="w-4 h-4 text-amber-400" />
                       Add to Setlist
                     </button>
                   )}
@@ -144,32 +126,21 @@ export const SongCard: React.FC<SongCardProps> = ({
                   <button
                     onClick={() => {
                       setShowMenu(false);
-                      downloadSongLyrics(song as Song, 'lrc');
-                    }}
-                    className="w-full text-left px-3.5 py-2.5 text-neutral-200 hover:bg-neutral-750 flex items-center gap-2.5"
-                  >
-                    <Download className="w-4 h-4 text-blue-400" />
-                    Export .LRC / Share
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowMenu(false);
                       downloadSongLyrics(song as Song, 'txt');
                     }}
-                    className="w-full text-left px-3.5 py-2.5 text-neutral-200 hover:bg-neutral-750 flex items-center gap-2.5"
+                    className="w-full text-left px-3.5 py-2.5 text-neutral-200 hover:bg-neutral-800 flex items-center gap-2.5"
                   >
                     <Download className="w-4 h-4 text-neutral-400" />
-                    Export Plain Text
+                    Export Text (.TXT)
                   </button>
 
                   {onEdit && (
                     <button
                       onClick={() => { setShowMenu(false); onEdit(); }}
-                      className="w-full text-left px-3.5 py-2.5 text-neutral-200 hover:bg-neutral-750 flex items-center gap-2.5"
+                      className="w-full text-left px-3.5 py-2.5 text-neutral-200 hover:bg-neutral-800 flex items-center gap-2.5"
                     >
                       <Edit3 className="w-4 h-4 text-amber-400" />
-                      Edit Lyrics & Timings
+                      Edit Lyrics
                     </button>
                   )}
 
@@ -179,7 +150,7 @@ export const SongCard: React.FC<SongCardProps> = ({
                       className="w-full text-left px-3.5 py-2.5 text-red-400 hover:bg-red-950/40 flex items-center gap-2.5 border-t border-neutral-800"
                     >
                       <Trash2 className="w-4 h-4" />
-                      Remove from Library
+                      Remove from Notebook
                     </button>
                   )}
                 </div>
@@ -194,7 +165,7 @@ export const SongCard: React.FC<SongCardProps> = ({
         onClick={onSelect} 
         className="pt-2.5 cursor-pointer select-none group/title"
       >
-        <h3 className="text-sm sm:text-base font-bold text-neutral-100 break-words leading-snug group-hover/title:text-emerald-400 transition-colors">
+        <h3 className="text-sm sm:text-base font-bold text-neutral-100 break-words leading-snug group-hover/title:text-amber-400 transition-colors">
           {song.trackName || (song as any).name || 'Unknown Track'}
         </h3>
         <p className="text-xs text-neutral-400 break-words leading-relaxed mt-1">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavTab, BottomNavigation, AppHeader } from './components/Navigation';
 import { SearchLyrics } from './components/SearchLyrics';
 import { LibraryView } from './components/LibraryView';
@@ -12,6 +12,7 @@ import { initDatabaseDefaults, getLocalSongs } from './services/db';
 export function App() {
   const [currentTab, setCurrentTab] = useState<NavTab>('library');
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [openSongs, setOpenSongs] = useState<Song[]>([]);
   const [activeSong, setActiveSong] = useState<Song | null>(null);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
@@ -23,6 +24,7 @@ export function App() {
       const songs = await getLocalSongs();
       if (songs.length > 0 && !activeSong) {
         setActiveSong(songs[0]);
+        setOpenSongs([songs[0]]);
       }
     });
 
@@ -39,8 +41,27 @@ export function App() {
   }, []);
 
   const handleSelectSong = (song: Song) => {
+    setOpenSongs((prev) => {
+      const exists = prev.some((s) => s.id === song.id);
+      if (exists) {
+        return prev.map((s) => (s.id === song.id ? song : s));
+      }
+      // Keep up to 12 open tabs
+      return [...prev.slice(-11), song];
+    });
     setActiveSong(song);
     setCurrentTab('player');
+  };
+
+  const handleCloseOpenSong = (songId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenSongs((prev) => {
+      const remaining = prev.filter((s) => s.id !== songId);
+      if (activeSong?.id === songId) {
+        setActiveSong(remaining.length > 0 ? remaining[remaining.length - 1] : null);
+      }
+      return remaining;
+    });
   };
 
   const handleEditSong = (song: Song) => {
@@ -55,25 +76,24 @@ export function App() {
 
   const handleSaveEditorSuccess = (savedSong: Song) => {
     setIsEditorOpen(false);
-    setActiveSong(savedSong);
-    setCurrentTab('player');
+    handleSelectSong(savedSong);
   };
 
   const getHeaderTitle = (): string => {
-    if (isEditorOpen) return 'Lyric Studio';
+    if (isEditorOpen) return 'Lyric Sheet Editor';
     switch (currentTab) {
-      case 'search': return 'LRCLIB Search';
-      case 'library': return 'Offline Vault';
+      case 'search': return 'Look Up Lyrics';
+      case 'library': return 'LyricVault Notebook';
       case 'playlists': return 'Setlists';
-      case 'player': return 'Now Playing';
+      case 'player': return 'Lyric Notebook';
       case 'settings': return 'App Settings';
       default: return 'LyricVault';
     }
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col selection:bg-emerald-500 selection:text-black">
-      {/* App Header (Hidden when viewing lyrics player for immersion) */}
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col selection:bg-amber-500 selection:text-black">
+      {/* App Header (Hidden when viewing lyric sheet for maximum space) */}
       {currentTab !== 'player' && !isEditorOpen && (
         <AppHeader
           title={getHeaderTitle()}
@@ -105,6 +125,9 @@ export function App() {
                 onCreateNew={handleCreateNewSong}
                 onOpenPlaylists={() => setCurrentTab('playlists')}
                 onAddToPlaylist={(song) => setSongForPlaylist(song)}
+                openSongs={openSongs}
+                activeSongId={activeSong?.id}
+                onCloseOpenSong={handleCloseOpenSong}
               />
             )}
 
@@ -117,6 +140,9 @@ export function App() {
             {currentTab === 'player' && (
               <LyricsDisplay
                 song={activeSong}
+                openSongs={openSongs}
+                onSelectOpenSong={(song) => setActiveSong(song)}
+                onCloseOpenSong={handleCloseOpenSong}
                 onBack={() => setCurrentTab('library')}
                 onEditSong={handleEditSong}
               />
@@ -145,6 +171,7 @@ export function App() {
           isOnline={isOnline}
           hasActiveSong={Boolean(activeSong)}
           activeSongTitle={activeSong?.trackName}
+          openTabsCount={openSongs.length}
         />
       )}
     </div>
