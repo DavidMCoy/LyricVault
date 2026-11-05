@@ -1,6 +1,11 @@
 import Dexie, { type Table } from 'dexie';
 import { Song, Playlist } from '../types/lyrics';
 import spotifyTop100Data from '../data/spotifyTop100.json';
+import {
+  normalizeSongMetadata,
+  getArtistFingerprint,
+  getTrackFingerprint,
+} from '../utils/artistNormalizer';
 
 export interface AudioBlobRecord {
   id: string; // matches audioFileBlobKey
@@ -38,27 +43,118 @@ export class LyricVaultDatabase extends Dexie {
 export const db = new LyricVaultDatabase();
 
 /**
- * Seed initial Spotify Top 100 songs and playlists if not present
+ * Normalizes all existing songs in IndexedDB (unifying artist variations like
+ * AC DC / Ac-Dc / AC/DC, adding dedicated artistSortName & trackSortName tags,
+ * and merging exact duplicate songs while keeping playlist links intact).
+ */
+export async function deduplicateAndNormalizeDatabase(): Promise<{
+  normalizedCount: number;
+  duplicatesMerged: number;
+}> {
+  const allSongs = await db.songs.toArray();
+  if (allSongs.length === 0) {
+    return { normalizedCount: 0, duplicatesMerged: 0 };
+  }
+
+  const seenByKey = new Map<string, Song>();
+  const idRemap = new Map<string, string>(); // duplicateId -> canonicalSongId
+  let normalizedCount = 0;
+  let duplicatesMerged = 0;
+
+  for (const rawSong of allSongs) {
+    const normalized = normalizeSongMetadata(rawSong);
+    if (
+      normalized.artistName !== rawSong.artistName ||
+      normalized.artistSortName !== rawSong.artistSortName ||
+      normalized.trackSortName !== rawSong.trackSortName
+    ) {
+      normalizedCount++;
+    }
+
+    const key = `${getArtistFingerprint(normalized.artistName)}::${getTrackFingerprint(normalized.trackName)}`;
+    const existing = seenByKey.get(key);
+
+    if (!existing) {
+      seenByKey.set(key, normalized);
+      await db.songs.put(normalized);
+    } else {
+      // Merge duplicate into existing canonical song
+      duplicatesMerged++;
+      const merged: Song = {
+        ...existing,
+        isFavorite: existing.isFavorite || normalized.isFavorite,
+        plainLyrics:
+          (existing.plainLyrics && existing.plainLyrics.length >= (normalized.plainLyrics?.length || 0))
+            ? existing.plainLyrics
+            : normalized.plainLyrics || existing.plainLyrics,
+        syncedLyrics: existing.syncedLyrics || normalized.syncedLyrics,
+        albumName: existing.albumName || normalized.albumName,
+        updatedAt: Math.max(existing.updatedAt || 0, normalized.updatedAt || 0),
+      };
+      seenByKey.set(key, merged);
+      await db.songs.put(merged);
+
+      if (normalized.id !== existing.id) {
+        idRemap.set(normalized.id, existing.id);
+        await db.songs.delete(normalized.id);
+      }
+    }
+  }
+
+  // Update playlists if any duplicate song IDs were merged
+  if (idRemap.size > 0) {
+    const playlists = await db.playlists.toArray();
+    for (const pl of playlists) {
+      let changed = false;
+      const updatedIds: string[] = [];
+      for (const sid of pl.songIds) {
+        const mapped = idRemap.get(sid) || sid;
+        if (mapped !== sid) changed = true;
+        if (!updatedIds.includes(mapped)) {
+          updatedIds.push(mapped);
+        } else {
+          changed = true;
+        }
+      }
+      if (changed) {
+        await db.playlists.put({
+          ...pl,
+          songIds: updatedIds,
+          updatedAt: Date.now(),
+        });
+      }
+    }
+  }
+
+  return { normalizedCount, duplicatesMerged };
+}
+
+/**
+ * Seed initial Spotify Top 100 songs and playlists if not present,
+ * and normalize/deduplicate existing records.
  */
 export async function initDatabaseDefaults() {
   const count = await db.songs.count();
   if (count === 0) {
     if (spotifyTop100Data.songs && spotifyTop100Data.songs.length > 0) {
-      await db.songs.bulkAdd(spotifyTop100Data.songs as Song[]);
+      const normalizedSongs = (spotifyTop100Data.songs as Song[]).map(normalizeSongMetadata);
+      await db.songs.bulkPut(normalizedSongs);
     }
     if (spotifyTop100Data.playlists && spotifyTop100Data.playlists.length > 0) {
-      await db.playlists.bulkAdd(spotifyTop100Data.playlists as Playlist[]);
+      await db.playlists.bulkPut(spotifyTop100Data.playlists as Playlist[]);
     }
   } else {
     // If database already exists, make sure Spotify Top 100 playlist is present
     const pl = await db.playlists.get('pl-spotify-top100');
     if (!pl && spotifyTop100Data.playlists) {
       for (const song of spotifyTop100Data.songs) {
-        await db.songs.put(song as Song);
+        await db.songs.put(normalizeSongMetadata(song as Song));
       }
-      await db.playlists.bulkAdd(spotifyTop100Data.playlists as Playlist[]);
+      await db.playlists.bulkPut(spotifyTop100Data.playlists as Playlist[]);
     }
   }
+
+  await deduplicateAndNormalizeDatabase();
 }
 
 /**
@@ -66,11 +162,12 @@ export async function initDatabaseDefaults() {
  */
 export async function importSpotifyTop100Data(): Promise<number> {
   for (const song of spotifyTop100Data.songs) {
-    await db.songs.put(song as Song);
+    await saveSong(song as Song);
   }
   for (const pl of spotifyTop100Data.playlists) {
     await db.playlists.put(pl as Playlist);
   }
+  await deduplicateAndNormalizeDatabase();
   return spotifyTop100Data.songs.length;
 }
 
@@ -83,21 +180,49 @@ export async function getSongById(id: string): Promise<Song | undefined> {
   return await db.songs.get(id);
 }
 
+/**
+ * Saves a song after normalizing its artist display name, dedicated sort metadata tags,
+ * and checking for existing duplicates with the same artist + track fingerprint.
+ */
 export async function saveSong(song: Song): Promise<string> {
+  const normalized = normalizeSongMetadata(song);
+  const artistFp = getArtistFingerprint(normalized.artistName);
+  const trackFp = getTrackFingerprint(normalized.trackName);
+
+  // Check if an identical (artistFp + trackFp) song already exists under a different ID
+  const allSongs = await db.songs.toArray();
+  const duplicate = allSongs.find(
+    (s) =>
+      s.id !== normalized.id &&
+      getArtistFingerprint(s.artistName) === artistFp &&
+      getTrackFingerprint(s.trackName) === trackFp
+  );
+
+  if (duplicate) {
+    const merged: Song = {
+      ...duplicate,
+      ...normalized,
+      id: duplicate.id, // preserve existing canonical ID so playlists stay linked
+      isFavorite: duplicate.isFavorite || normalized.isFavorite,
+      addedAt: duplicate.addedAt || normalized.addedAt,
+      updatedAt: Date.now(),
+    };
+    await db.songs.put(merged);
+    return merged.id;
+  }
+
   await db.songs.put({
-    ...song,
-    updatedAt: Date.now()
+    ...normalized,
+    updatedAt: Date.now(),
   });
-  return song.id;
+  return normalized.id;
 }
 
 export async function deleteSong(id: string): Promise<void> {
-  // Also clean up referenced audio file if present
   const song = await db.songs.get(id);
   if (song?.audioFileBlobKey) {
     await db.audioCache.delete(song.audioFileBlobKey);
   }
-  // Remove from playlists
   const playlists = await db.playlists.toArray();
   for (const pl of playlists) {
     if (pl.songIds.includes(id)) {
@@ -118,8 +243,7 @@ export async function toggleFavorite(id: string): Promise<boolean> {
 }
 
 export async function searchLocalSongs(query: string, filterFavorite = false): Promise<Song[]> {
-  let collection = db.songs.toCollection();
-  let results = await collection.toArray();
+  let results = await db.songs.toArray();
 
   if (filterFavorite) {
     results = results.filter(s => s.isFavorite);
@@ -127,9 +251,12 @@ export async function searchLocalSongs(query: string, filterFavorite = false): P
 
   if (query.trim()) {
     const q = query.toLowerCase().trim();
+    const qFp = getArtistFingerprint(q);
     results = results.filter(s =>
       s.trackName.toLowerCase().includes(q) ||
       s.artistName.toLowerCase().includes(q) ||
+      (s.artistSortName && s.artistSortName.toLowerCase().includes(q)) ||
+      (qFp.length >= 2 && getArtistFingerprint(s.artistName).includes(qFp)) ||
       (s.albumName && s.albumName.toLowerCase().includes(q)) ||
       (s.tags && s.tags.some(t => t.toLowerCase().includes(q))) ||
       (s.plainLyrics && s.plainLyrics.toLowerCase().includes(q))
@@ -176,7 +303,6 @@ export async function getStorageStats() {
   const searchHistory = await db.searchHistory.toArray();
   const audioRecords = await db.audioCache.toArray();
 
-  // Calculate actual text byte size for songs
   const encoder = new TextEncoder();
   let songsBytes = 0;
   for (const s of songs) {
@@ -197,7 +323,6 @@ export async function getStorageStats() {
   const audioBytes = audioRecords.reduce((acc, curr) => acc + (curr.size || 0), 0);
   const databaseTotalBytes = songsBytes + playlistsBytes + searchHistoryBytes + audioBytes;
 
-  // Query browser/Android storage quota estimate if available
   let systemQuota: number | undefined;
   let systemUsage: number | undefined;
 

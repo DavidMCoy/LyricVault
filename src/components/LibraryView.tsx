@@ -6,6 +6,13 @@ import {
 import { Song } from '../types/lyrics';
 import { searchLocalSongs, deleteSong, toggleFavorite } from '../services/db';
 import { importLrcFile } from '../utils/exportImport';
+import {
+  getArtistFingerprint,
+  canonicalizeArtistDisplayName,
+  computeArtistSortName,
+  computeTrackSortName,
+  getSortBucketLetter,
+} from '../utils/artistNormalizer';
 import { SongCard } from './SongCard';
 
 interface LibraryViewProps {
@@ -67,74 +74,103 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     }
   };
 
-  const getFirstLetterBucket = (str: string): string => {
-    const ch = (str || '').trim().charAt(0).toUpperCase();
-    if (ch >= 'A' && ch <= 'Z') return ch;
-    return '#';
+  // Helper to get the effective sort tag for a song (either by Artist Sort Tag or Track Sort Tag)
+  const getSongSortTag = (song: Song, mode: ViewMode): string => {
+    if (mode === 'grouped') {
+      return computeArtistSortName(song.artistName, song.artistSortName);
+    }
+    return computeTrackSortName(song.trackName, song.trackSortName);
   };
 
-  // Determine which alphabet letters exist in current song list
+  // Determine which alphabet letters exist in current song list using dedicated sort metadata tags
   const availableLetters = useMemo(() => {
     const set = new Set<string>(['ALL']);
     if (songs.some(s => s.isFavorite)) set.add('★');
     for (const s of songs) {
-      const target = viewMode === 'grouped' ? s.artistName : s.trackName;
-      set.add(getFirstLetterBucket(target));
+      const sortTag = getSongSortTag(s, viewMode);
+      set.add(getSortBucketLetter(sortTag));
     }
     return set;
   }, [songs, viewMode]);
 
-  // Filter songs by selected notebook tab (ALL, ★, A-Z, #)
+  // Filter songs by selected notebook tab (ALL, ★, A-Z, #) using sort metadata tag
   const filteredSongs = useMemo(() => {
     if (activeLetter === 'ALL') return songs;
     if (activeLetter === '★') return songs.filter(s => s.isFavorite);
     return songs.filter(s => {
-      const target = viewMode === 'grouped' ? s.artistName : s.trackName;
-      return getFirstLetterBucket(target) === activeLetter;
+      const sortTag = getSongSortTag(s, viewMode);
+      return getSortBucketLetter(sortTag) === activeLetter;
     });
   }, [songs, activeLetter, viewMode]);
 
-  // Group songs by Artist and sort songs within each artist alphabetically by Song Title
+  // Group songs by normalized Artist Fingerprint (so AC DC, Ac-Dc, AC/DC merge into 1 band)
+  // and sort by dedicated `artistSortName` (so "The Beatles" sorts under "B" as "Beatles, The")
   const artistGroups = useMemo(() => {
-    const map = new Map<string, Song[]>();
+    const map = new Map<
+      string,
+      {
+        fingerprint: string;
+        displayName: string;
+        sortName: string;
+        songs: Song[];
+      }
+    >();
 
     for (const song of filteredSongs) {
-      const artist = (song.artistName || 'Unknown Artist').trim();
-      if (!map.has(artist)) {
-        map.set(artist, []);
+      const fp = getArtistFingerprint(song.artistName);
+      const canonicalDisplay = canonicalizeArtistDisplayName(song.artistName);
+      const sortName = computeArtistSortName(canonicalDisplay, song.artistSortName);
+
+      if (!map.has(fp)) {
+        map.set(fp, {
+          fingerprint: fp,
+          displayName: canonicalDisplay,
+          sortName,
+          songs: [],
+        });
       }
-      map.get(artist)!.push(song);
+      map.get(fp)!.songs.push(song);
     }
 
-    // Sort songs inside each artist by Song Title (A-Z)
-    for (const [, artistSongList] of map.entries()) {
-      artistSongList.sort((a, b) => a.trackName.localeCompare(b.trackName, undefined, { sensitivity: 'base' }));
+    // Sort songs inside each artist by dedicated Track Sort Tag (A-Z)
+    for (const group of map.values()) {
+      group.songs.sort((a, b) => {
+        const sortA = computeTrackSortName(a.trackName, a.trackSortName);
+        const sortB = computeTrackSortName(b.trackName, b.trackSortName);
+        return sortA.localeCompare(sortB, undefined, { sensitivity: 'base' });
+      });
     }
 
-    // Sort artists alphabetically (A-Z)
-    const sortedEntries = Array.from(map.entries()).sort((a, b) => 
-      a[0].localeCompare(b[0], undefined, { sensitivity: 'base' })
+    // Sort artist groups alphabetically by dedicated `sortName` (A-Z)
+    const sortedGroups = Array.from(map.values()).sort((a, b) =>
+      a.sortName.localeCompare(b.sortName, undefined, { sensitivity: 'base' })
     );
 
-    return sortedEntries.map(([artist, artistSongs]) => ({
-      artist,
-      songs: artistSongs,
-      count: artistSongs.length,
+    return sortedGroups.map((g) => ({
+      key: g.fingerprint,
+      artist: g.displayName,
+      sortName: g.sortName,
+      songs: g.songs,
+      count: g.songs.length,
     }));
   }, [filteredSongs]);
 
-  // Flat list sorted by Track Title
+  // Flat list sorted by dedicated Track Sort Tag (`trackSortName`)
   const flatSortedSongs = useMemo(() => {
-    return [...filteredSongs].sort((a, b) => a.trackName.localeCompare(b.trackName, undefined, { sensitivity: 'base' }));
+    return [...filteredSongs].sort((a, b) => {
+      const sortA = computeTrackSortName(a.trackName, a.trackSortName);
+      const sortB = computeTrackSortName(b.trackName, b.trackSortName);
+      return sortA.localeCompare(sortB, undefined, { sensitivity: 'base' });
+    });
   }, [filteredSongs]);
 
-  const toggleArtistExpand = (artist: string) => {
+  const toggleArtistExpand = (artistKey: string) => {
     setExpandedArtists(prev => {
       const next = new Set(prev);
-      if (next.has(artist)) {
-        next.delete(artist);
+      if (next.has(artistKey)) {
+        next.delete(artistKey);
       } else {
-        next.add(artist);
+        next.add(artistKey);
       }
       return next;
     });
@@ -144,7 +180,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     if (expandedArtists.size > 0) {
       setExpandedArtists(new Set());
     } else {
-      setExpandedArtists(new Set(artistGroups.map(g => g.artist)));
+      setExpandedArtists(new Set(artistGroups.map(g => g.key)));
     }
   };
 
@@ -352,20 +388,22 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               )}
             </div>
           ) : viewMode === 'grouped' ? (
-            /* Grouped by Artist -> Song Title */
+            /* Grouped by Canonical Artist -> Sorted by Dedicated Sort Metadata Tag */
             <div className="space-y-2.5">
               {artistGroups.map((group) => {
-                const isExpanded = expandedArtists.has(group.artist) || activeLetter !== 'ALL';
-                const initialLetter = group.artist.charAt(0).toUpperCase();
+                const isExpanded = expandedArtists.has(group.key) || activeLetter !== 'ALL';
+                const initialLetter = getSortBucketLetter(group.sortName);
+                const hasCustomSortLabel =
+                  group.sortName.toLowerCase() !== group.artist.toLowerCase();
 
                 return (
                   <div
-                    key={group.artist}
+                    key={group.key}
                     className="bg-neutral-900/90 border border-neutral-800/90 rounded-xl overflow-hidden shadow-sm"
                   >
                     {/* Artist Divider Tab Header */}
                     <div
-                      onClick={() => toggleArtistExpand(group.artist)}
+                      onClick={() => toggleArtistExpand(group.key)}
                       className={`p-3 bg-neutral-900 hover:bg-neutral-850 cursor-pointer flex items-center justify-between gap-3 transition-colors ${
                         isExpanded ? 'border-b border-neutral-800/60 bg-neutral-850' : ''
                       }`}
@@ -375,9 +413,16 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           {initialLetter}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-sm font-bold text-neutral-100 break-words leading-tight">
-                            {group.artist}
-                          </h3>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm font-bold text-neutral-100 break-words leading-tight">
+                              {group.sortName}
+                            </h3>
+                            {hasCustomSortLabel && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-neutral-400 font-medium">
+                                {group.artist}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-neutral-400 mt-0.5">
                             {group.count} {group.count === 1 ? 'lyric sheet' : 'lyric sheets'}
                           </p>
@@ -393,7 +438,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Songs for this artist sorted by Song Title */}
+                    {/* Songs for this artist sorted by Track Sort Tag */}
                     {isExpanded && (
                       <div className="p-2.5 space-y-2 bg-neutral-950/50 animate-fade-in">
                         {group.songs.map((song) => (
@@ -417,7 +462,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               })}
             </div>
           ) : (
-            /* Flat Alphabetical List by Song Title */
+            /* Flat Alphabetical List by Song Sort Tag */
             <div className="space-y-2.5">
               {flatSortedSongs.map((song) => (
                 <SongCard
@@ -447,13 +492,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 key={tab}
                 onClick={() => {
                   setActiveLetter(tab);
-                  if (tab !== 'ALL' && tab !== '★') {
-                    // Automatically expand matching artists when a specific letter tab is clicked
-                    const matching = artistGroups
-                      .filter(g => getFirstLetterBucket(g.artist) === tab)
-                      .map(g => g.artist);
-                    setExpandedArtists(new Set(matching));
-                  } else if (tab === 'ALL') {
+                  if (tab === 'ALL') {
                     setExpandedArtists(new Set());
                   }
                 }}

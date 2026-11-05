@@ -2,6 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, ListMusic, Trash2, X, Check, Play, Users, Sparkles } from 'lucide-react';
 import { Playlist, Song } from '../types/lyrics';
 import { db, importSpotifyTop100Data } from '../services/db';
+import {
+  getArtistFingerprint,
+  canonicalizeArtistDisplayName,
+  computeArtistSortName,
+  computeTrackSortName,
+} from '../utils/artistNormalizer';
 import confetti from 'canvas-confetti';
 
 interface PlaylistsViewProps {
@@ -60,26 +66,32 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({ onSelectSong }) =>
     setPlaylistSongs(ordered);
   };
 
-  // Group playlist songs by Artist and sort by Song Title within each artist
+  // Group playlist songs by canonical Artist Fingerprint and sort by dedicated Sort Metadata Tags
   const groupedPlaylistSongs = useMemo(() => {
-    const map = new Map<string, Song[]>();
+    const map = new Map<string, { sortName: string; displayName: string; songs: Song[] }>();
     for (const song of playlistSongs) {
-      const artist = (song.artistName || 'Unknown Artist').trim();
-      if (!map.has(artist)) {
-        map.set(artist, []);
+      const fp = getArtistFingerprint(song.artistName);
+      const displayName = canonicalizeArtistDisplayName(song.artistName);
+      const sortName = computeArtistSortName(displayName, song.artistSortName);
+      if (!map.has(fp)) {
+        map.set(fp, { sortName, displayName, songs: [] });
       }
-      map.get(artist)!.push(song);
+      map.get(fp)!.songs.push(song);
     }
 
-    // Sort songs inside artist by Title (A-Z)
-    for (const [, list] of map.entries()) {
-      list.sort((a, b) => a.trackName.localeCompare(b.trackName, undefined, { sensitivity: 'base' }));
+    // Sort songs inside artist by Track Sort Tag (A-Z)
+    for (const group of map.values()) {
+      group.songs.sort((a, b) => {
+        const sortA = computeTrackSortName(a.trackName, a.trackSortName);
+        const sortB = computeTrackSortName(b.trackName, b.trackSortName);
+        return sortA.localeCompare(sortB, undefined, { sensitivity: 'base' });
+      });
     }
 
-    // Sort artists alphabetically (A-Z)
-    return Array.from(map.entries()).sort((a, b) => 
-      a[0].localeCompare(b[0], undefined, { sensitivity: 'base' })
-    );
+    // Sort artists alphabetically by Artist Sort Tag (A-Z)
+    return Array.from(map.values())
+      .sort((a, b) => a.sortName.localeCompare(b.sortName, undefined, { sensitivity: 'base' }))
+      .map((g) => [g.sortName, g.songs] as [string, Song[]]);
   }, [playlistSongs]);
 
   const handleCreatePlaylist = async () => {

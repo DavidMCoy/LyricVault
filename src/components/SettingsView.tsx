@@ -3,7 +3,7 @@ import {
   Settings, HardDrive, Download, Upload, Trash2, Smartphone, 
   Database, Check, RefreshCw, Music, ListMusic, FileText, PieChart, Sparkles
 } from 'lucide-react';
-import { getStorageStats, db, importSpotifyTop100Data } from '../services/db';
+import { getStorageStats, db, importSpotifyTop100Data, deduplicateAndNormalizeDatabase } from '../services/db';
 import { exportFullBackup, importFullBackup } from '../utils/exportImport';
 
 export const SettingsView: React.FC = () => {
@@ -223,6 +223,22 @@ export const SettingsView: React.FC = () => {
         >
           <Sparkles className="w-4 h-4 text-emerald-400" />
           Sync Spotify Top 100 Playlist (100 Songs)
+        </button>
+
+        <button
+          onClick={async () => {
+            setImportStatus('Normalizing artist names & sort tags...');
+            const res = await deduplicateAndNormalizeDatabase();
+            await loadStats();
+            setImportStatus(
+              `Cleaned library: ${res.normalizedCount} sort tags updated, ${res.duplicatesMerged} duplicate songs merged!`
+            );
+            setTimeout(() => setImportStatus(null), 5000);
+          }}
+          className="w-full py-2.5 px-3 rounded-xl bg-amber-950/50 hover:bg-amber-900/60 border border-amber-800/60 text-xs font-bold text-amber-300 flex items-center justify-center gap-2 transition-colors active:scale-98 shadow-sm"
+        >
+          <RefreshCw className="w-4 h-4 text-amber-400" />
+          Deduplicate Bands & Update Sort Tags ("The" Filing)
         </button>
 
         <div className="flex flex-col sm:flex-row gap-2.5 pt-1">

@@ -9,6 +9,8 @@ export interface Song {
   id: string; // LRCLIB numeric string or UUID
   trackName: string;
   artistName: string;
+  artistSortName?: string; // Dedicated sort metadata tag (e.g. "Beatles, The")
+  trackSortName?: string; // Dedicated sort metadata tag for song title
   albumName?: string;
   duration?: number; // In seconds
   instrumental: boolean;
