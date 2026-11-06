@@ -138,7 +138,7 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({ onSelectSong }) =>
   };
 
   return (
-    <div className="p-4 max-w-2xl mx-auto space-y-4 pb-28 animate-fade-in">
+    <div className="p-4 max-w-2xl mx-auto space-y-4 pb-36 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-base font-bold text-neutral-100 flex items-center gap-2">

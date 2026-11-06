@@ -79,7 +79,7 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="p-4 max-w-2xl mx-auto space-y-6 pb-28 animate-fade-in">
+    <div className="p-4 max-w-2xl mx-auto space-y-6 pb-36 animate-fade-in">
       {/* Header */}
       <div>
         <h2 className="text-base font-bold text-neutral-100 flex items-center gap-2">

@@ -104,7 +104,7 @@ export const SearchLyrics: React.FC<SearchLyricsProps> = ({ onSelectSong, isOnli
   const quickPicks = ['Bohemian Rhapsody', 'Blinding Lights', 'Hotel California', 'Imagine Dragons', 'Taylor Swift'];
 
   return (
-    <div className="p-4 max-w-2xl mx-auto space-y-4 pb-24 animate-fade-in">
+    <div className="p-4 max-w-2xl mx-auto space-y-4 pb-36 animate-fade-in">
       {/* Search Input Box */}
       <div className="relative">
         <form

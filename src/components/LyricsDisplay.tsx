@@ -34,7 +34,7 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
 }) => {
   if (!song) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[65vh] p-6 text-center text-neutral-400">
+      <div className="flex flex-col items-center justify-center min-h-[65vh] p-6 pt-safe-status pb-36 text-center text-neutral-400">
         <div className="w-12 h-12 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center mb-3 text-amber-400">
           <BookOpen className="w-6 h-6" />
         </div>
@@ -123,9 +123,9 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
   };
 
   return (
-    <div className="flex flex-col min-h-[90vh] pb-32 animate-fade-in">
+    <div className="flex flex-col min-h-[90vh] pb-40 animate-fade-in">
       {/* Top Sticky Notebook Bar: Open Song Tabs + Reader Controls */}
-      <div className="sticky top-0 z-30 bg-neutral-950/95 backdrop-blur-md border-b border-neutral-800 shadow-lg">
+      <div className="sticky top-0 z-30 bg-neutral-950/95 backdrop-blur-md border-b border-neutral-800 shadow-lg pt-safe-status">
         {/* Binder Tabs Bar for Open Songs */}
         <div className="flex items-center gap-1 px-2 pt-2 overflow-x-auto bg-neutral-950 border-b border-neutral-800/80">
           <button

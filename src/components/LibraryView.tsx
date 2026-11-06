@@ -176,8 +176,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     });
   };
 
+  const isAnyVisibleExpanded = useMemo(
+    () => artistGroups.some((g) => expandedArtists.has(g.key)),
+    [artistGroups, expandedArtists]
+  );
+
   const handleToggleExpandAll = () => {
-    if (expandedArtists.size > 0) {
+    if (isAnyVisibleExpanded) {
       setExpandedArtists(new Set());
     } else {
       setExpandedArtists(new Set(artistGroups.map(g => g.key)));
@@ -210,7 +215,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   return (
-    <div className="p-3 sm:p-4 max-w-3xl mx-auto space-y-3.5 pb-28 animate-fade-in">
+    <div className="p-3 sm:p-4 max-w-3xl mx-auto space-y-3.5 pb-36 animate-fade-in">
       {/* Open Song Notebook Tabs Strip (Quick Jump to Open Lyric Sheets) */}
       {openSongs.length > 0 && (
         <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-2">
@@ -359,7 +364,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 onClick={handleToggleExpandAll}
                 className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold active:scale-95 transition-all"
               >
-                {expandedArtists.size > 0 ? 'Collapse All' : 'Expand All'}
+                {isAnyVisibleExpanded ? 'Collapse All' : 'Expand All'}
               </button>
             )}
           </div>
@@ -391,7 +396,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             /* Grouped by Canonical Artist -> Sorted by Dedicated Sort Metadata Tag */
             <div className="space-y-2.5">
               {artistGroups.map((group) => {
-                const isExpanded = expandedArtists.has(group.key) || activeLetter !== 'ALL';
+                const isExpanded = expandedArtists.has(group.key);
                 const initialLetter = getSortBucketLetter(group.sortName);
                 const hasCustomSortLabel =
                   group.sortName.toLowerCase() !== group.artist.toLowerCase();
@@ -483,7 +488,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         </div>
 
         {/* Right-Side Physical Address Book / Binder A–Z Index Tabs */}
-        <div className="flex flex-col gap-0.5 sticky top-16 z-20 select-none">
+        <div className="flex flex-col gap-0.5 sticky top-24 z-20 select-none">
           {ALPHABET_TABS.map((tab) => {
             const isSelected = activeLetter === tab;
             const hasItems = availableLetters.has(tab);
@@ -492,9 +497,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 key={tab}
                 onClick={() => {
                   setActiveLetter(tab);
-                  if (tab === 'ALL') {
-                    setExpandedArtists(new Set());
-                  }
+                  setExpandedArtists(new Set());
                 }}
                 disabled={!hasItems && tab !== 'ALL' && tab !== '★'}
                 className={`w-7 sm:w-8 h-6 rounded-r-lg border-y border-r text-[10px] font-extrabold flex items-center justify-center transition-all ${

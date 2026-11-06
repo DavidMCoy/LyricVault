@@ -26,8 +26,8 @@ export const BottomNavigation: React.FC<NavigationProps> = ({
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-neutral-900/95 backdrop-blur-md border-t border-neutral-800 pb-safe">
-      <div className="max-w-md mx-auto flex items-center justify-around px-2 py-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-neutral-900/95 backdrop-blur-md border-t border-neutral-800 pb-safe-nav">
+      <div className="max-w-md mx-auto flex items-center justify-around px-2 pt-2 pb-1">
         {tabs.map((tab) => {
           const isActive = currentTab === tab.id;
           return (
@@ -68,7 +68,7 @@ interface HeaderProps {
 
 export const AppHeader: React.FC<HeaderProps> = ({ title, isOnline, rightAction }) => {
   return (
-    <header className="sticky top-0 z-30 bg-neutral-950/90 backdrop-blur-md border-b border-neutral-800/80 px-4 py-3 flex items-center justify-between">
+    <header className="sticky top-0 z-30 bg-neutral-950/95 backdrop-blur-md border-b border-neutral-800/80 px-4 pb-3 pt-safe-status flex items-center justify-between">
       <div className="flex items-center gap-2.5">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center shadow-md shadow-amber-950">
           <BookOpen className="w-4 h-4 text-black stroke-[2.5]" />

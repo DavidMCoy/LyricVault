@@ -101,7 +101,7 @@ export const LrcEditor: React.FC<LrcEditorProps> = ({
   };
 
   return (
-    <div className="p-4 max-w-2xl mx-auto space-y-4 pb-28 animate-fade-in">
+    <div className="p-4 pt-safe-status max-w-2xl mx-auto space-y-4 pb-36 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
