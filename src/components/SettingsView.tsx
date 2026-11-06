@@ -30,10 +30,36 @@ export const SettingsView: React.FC = () => {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const INSTALLED_VERSION = '1.5.0';
+  const GITHUB_APK_URL = 'https://github.com/DavidMCoy/LyricVault/raw/main/LyricVault.apk';
+  const GITHUB_PKG_URL = 'https://raw.githubusercontent.com/DavidMCoy/LyricVault/main/package.json';
+  const [latestGithubVersion, setLatestGithubVersion] = useState<string | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateCheckError, setUpdateCheckError] = useState<string | null>(null);
 
   useEffect(() => {
     loadStats();
+    if (navigator.onLine) {
+      checkGithubUpdate();
+    }
   }, []);
+
+  const checkGithubUpdate = async () => {
+    setIsCheckingUpdate(true);
+    setUpdateCheckError(null);
+    try {
+      const res = await fetch(`${GITHUB_PKG_URL}?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const pkg = await res.json();
+      if (pkg && pkg.version) {
+        setLatestGithubVersion(String(pkg.version));
+      }
+    } catch (e: any) {
+      setUpdateCheckError('Could not reach GitHub (check internet connection).');
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   const loadStats = async () => {
     setIsRefreshing(true);
@@ -270,33 +296,73 @@ export const SettingsView: React.FC = () => {
         )}
       </div>
 
-      {/* Android Standalone App Installation Guide */}
-      <div className="bg-gradient-to-br from-neutral-900 to-emerald-950/20 border border-emerald-900/40 rounded-3xl p-5 space-y-3 shadow-lg">
-        <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-          <Smartphone className="w-4 h-4" />
-          <span>Standalone Native Android App (.APK)</span>
+      {/* Android Standalone App Update & Installation Card (GitHub Cloud) */}
+      <div className="bg-gradient-to-br from-neutral-900 to-emerald-950/20 border border-emerald-900/40 rounded-3xl p-5 space-y-3.5 shadow-lg">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+            <Smartphone className="w-4 h-4" />
+            <span>App Updates (GitHub Cloud)</span>
+          </div>
+          <button
+            onClick={checkGithubUpdate}
+            disabled={isCheckingUpdate}
+            className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-[11px] font-semibold text-neutral-200 flex items-center gap-1.5 active:scale-95 transition-all"
+          >
+            <RefreshCw className={`w-3 h-3 ${isCheckingUpdate ? 'animate-spin text-emerald-400' : 'text-emerald-400'}`} />
+            {isCheckingUpdate ? 'Checking...' : 'Check for Updates'}
+          </button>
         </div>
 
+        {/* Version Comparison Banner */}
+        <div className="bg-neutral-950/70 border border-neutral-800/80 rounded-2xl p-3 flex items-center justify-between text-xs">
+          <div className="space-y-0.5">
+            <p className="text-neutral-400">
+              Installed Version: <strong className="text-neutral-100 font-mono">v{INSTALLED_VERSION}</strong>
+            </p>
+            <p className="text-neutral-400">
+              Latest on GitHub:{' '}
+              <strong className="text-emerald-400 font-mono">
+                {latestGithubVersion ? `v${latestGithubVersion}` : isCheckingUpdate ? 'Checking...' : '—'}
+              </strong>
+            </p>
+          </div>
+          <div>
+            {latestGithubVersion && latestGithubVersion !== INSTALLED_VERSION ? (
+              <span className="px-2.5 py-1 rounded-full bg-amber-500 text-black font-extrabold text-[10px] uppercase tracking-wider">
+                Update Available
+              </span>
+            ) : latestGithubVersion === INSTALLED_VERSION ? (
+              <span className="px-2.5 py-1 rounded-full bg-emerald-950 border border-emerald-700/60 text-emerald-400 font-bold text-[10px] flex items-center gap-1">
+                <Check className="w-3 h-3" /> Up to Date
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {updateCheckError && (
+          <p className="text-[11px] text-amber-400">{updateCheckError}</p>
+        )}
+
         <p className="text-xs text-neutral-300 leading-relaxed">
-          Install LyricVault directly as a native Android app into your App Drawer. It runs 100% offline with zero reliance on your home network or computer:
+          Download the latest standalone <strong className="text-neutral-100">LyricVault.apk</strong> directly from your GitHub repository from anywhere — no home network or PC server required:
         </p>
 
         <a
-          href="/LyricVault.apk"
-          download="LyricVault.apk"
+          href={GITHUB_APK_URL}
+          target="_blank"
+          rel="noopener noreferrer"
           className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-emerald-950/40"
         >
           <Download className="w-4 h-4 stroke-[2.5]" />
-          Download Standalone APK (4.4 MB)
+          Download Latest APK from GitHub
         </a>
 
         <div className="bg-neutral-950/60 border border-neutral-800/80 rounded-xl p-3 text-[11px] text-neutral-400 space-y-1.5">
-          <p className="font-semibold text-neutral-200">Installation Steps:</p>
+          <p className="font-semibold text-neutral-200">How to Update in Place (Keeps Your Database):</p>
           <ol className="list-decimal list-inside space-y-1 text-neutral-300">
-            <li>Tap the button above to download <strong className="text-emerald-400">LyricVault.apk</strong>.</li>
-            <li>Tap the downloaded file in your notifications or Files app.</li>
-            <li>Tap <strong className="text-neutral-100">"Install"</strong> (allow "Install from Unknown Sources" if prompted).</li>
-            <li>Open <strong className="text-emerald-400">LyricVault</strong> from your phone's App Drawer!</li>
+            <li>Tap <strong className="text-emerald-400">"Download Latest APK from GitHub"</strong> above.</li>
+            <li>Tap the downloaded <strong className="text-neutral-100">LyricVault.apk</strong> in your notifications or Downloads.</li>
+            <li>Tap <strong className="text-emerald-400">"Update"</strong> — Android updates the app while preserving all of your saved songs and setlists!</li>
           </ol>
         </div>
       </div>
