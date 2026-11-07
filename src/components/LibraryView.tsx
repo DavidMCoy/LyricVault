@@ -218,15 +218,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     <div className="p-3 sm:p-4 max-w-3xl mx-auto space-y-3.5 pb-36 animate-fade-in">
       {/* Open Song Notebook Tabs Strip (Quick Jump to Open Lyric Sheets) */}
       {openSongs.length > 0 && (
-        <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-2">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 pb-1.5 flex items-center justify-between">
+        <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-2.5">
+          <div className="text-xs font-bold uppercase tracking-wider text-neutral-400 px-2 pb-2 flex items-center justify-between">
             <span className="flex items-center gap-1.5">
-              <BookOpen className="w-3 h-3 text-amber-400" />
+              <BookOpen className="w-3.5 h-3.5 text-amber-400" />
               Open Lyric Tabs ({openSongs.length})
             </span>
-            <span className="text-neutral-500">Tap to open sheet</span>
+            <span className="text-neutral-500 text-[11px]">Tap to open sheet</span>
           </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
             {openSongs.map((s, idx) => {
               const isCurrent = s.id === activeSongId;
               const colorClass = TAB_COLORS[idx % TAB_COLORS.length];
@@ -234,20 +234,20 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <div
                   key={s.id}
                   onClick={() => onSelectSong(s)}
-                  className={`group flex items-center gap-2 px-3 py-1.5 rounded-t-xl rounded-b-md border-t-2 border-x border-b cursor-pointer shrink-0 max-w-[200px] transition-all ${
+                  className={`group flex items-center gap-3 pl-4 pr-2.5 py-2.5 rounded-t-2xl rounded-b-lg border-t-[3px] border-x border-b cursor-pointer shrink-0 max-w-[260px] transition-all ${
                     isCurrent
                       ? `bg-neutral-800 border-neutral-700 ${colorClass} font-bold shadow-sm`
                       : 'bg-neutral-950/80 border-neutral-800/80 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-850'
                   }`}
                 >
-                  <span className="text-xs truncate">{s.trackName}</span>
+                  <span className="text-sm leading-tight truncate">{s.trackName}</span>
                   {onCloseOpenSong && (
                     <button
                       onClick={(e) => onCloseOpenSong(s.id, e)}
-                      className="p-0.5 rounded-md text-neutral-500 hover:text-red-400 hover:bg-neutral-700/50"
+                      className="p-1.5 rounded-lg bg-neutral-800/70 hover:bg-red-950/70 text-neutral-300 hover:text-red-400 active:scale-90 transition-all shrink-0"
                       title="Close tab"
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-4 h-4 stroke-[2.5]" />
                     </button>
                   )}
                 </div>

@@ -1,95 +1,49 @@
-# LyricVault - Standalone Offline Android Lyrics Manager & Synchronized Player
+# LyricVault (v1.6.0) — Standalone Offline Android Lyrics Notebook
 
-**LyricVault** is a standalone, offline-first Android application designed to search, store locally, and display synchronized (.LRC) and plain song lyrics powered by **LRCLIB** and open lyrics databases.
+**LyricVault** is a standalone, offline-first Android application designed as a physical **Tabbed Lyric Notebook**. It lets you search, store locally, organize, and read song lyrics offline, powered by **LRCLIB** and open lyrics databases.
 
-It can be installed directly into your phone's **App Drawer** as a **native Android APK** with zero reliance on local networks or computers, or run as an offline Progressive Web App.
-
----
-
-## 🌟 Key Features
-
-### 1. Standalone Native Android App (.APK)
-- **100% Self-Contained**: All HTML/CSS/JS, icons, font assets, and IndexedDB database engine are bundled directly inside the APK.
-- **Zero Local Network Dependency**: Runs completely offline anywhere (in airplane mode, off the grid, or on stage) without needing your computer running.
-- **Direct App Drawer Installation**: Installed APK has its own app icon, splash screen, and full system integration.
-
-### 2. Preloaded "Top 100 Greatest Songs of All Time"
-- Pre-seeded with 100 iconic rock and classic tracks (Eagles, Queen, Michael Jackson, The Beatles, Led Zeppelin, Nirvana, Elvis Presley, etc.).
-- Line-by-line synchronized LRC timestamps and plain lyrics ready for instant offline playback.
-- Pre-built **Top 100 Setlist** ready to practice or perform.
-
-### 3. LRCLIB & Open Lyrics Database Engine
-- **Direct Public API Access**: Instant fuzzy & exact search across millions of synchronized and plain lyrics via `https://lrclib.net` without requiring an API key.
-- **One-Tap Offline Saving**: Tap "Save All Offline" to grab entire discographies into local storage before leaving Wi-Fi.
-- **Synced LRC Timestamps**: Line-by-line time codes (`[mm:ss.xx]`) with karaoke glowing highlights and auto-scrolling.
-
-### 4. Smart Library & Playlists Grouped by Artist
-- **Artist Sections (A–Z)**: Saved songs are organized under collapsible Artist headings.
-- **Collapsed by Default**: Opens with a clean, compact artist list. Tapping any artist expands only their tracks.
-- **Expand All / Collapse All Toggle**: Instantly expand or collapse your whole library with a single tap.
-- **Multi-Line Song Cards**: Action buttons (`Sound`, `Play`, `Save`, `Star`, `⋮`) are positioned on top, giving song titles, featured artists, and albums full width with zero truncation.
-
-### 5. Performance Display Modes & Hardware Controls
-- 🎤 **Karaoke / Synced Mode**: Smooth auto-scrolling with glowing active-line highlight, interactive line jumping (tap any line to seek), and timing offset adjustments (`±0.5s`).
-- 📜 **Teleprompter Mode**: Hands-free auto-scrolling with variable speeds (`1x` to `4x`), adjustable font sizes (`A-` to `A+`), and pause on touch.
-- ⚡ **Screen Wake Lock**: Automatically prevents your phone screen from dimming or locking while reading lyrics.
-- 🎵 **Offline Audio Linking**: Link MP3/M4A/FLAC audio files from your phone's storage to play alongside synchronized lyrics.
-- ⏱️ **Tap-to-Sync LRC Studio**: Play any song and tap `Stamp Line` in real-time to create or edit your own custom `.lrc` timestamps.
-
-### 6. Storage Space Breakdown Dashboard
-- Real-time byte-level storage calculator in **Settings**:
-  - Exact storage used by **Lyrics & LRC Metadata**, **Setlists & Playlists**, and **Linked Audio Files**.
-  - Device storage quota and usage indicator.
-  - Complete JSON Library Backup & Restore.
+- **Project Path**: `C:\projects\active\LyricVault`
+- **GitHub Repository**: `https://github.com/DavidMCoy/LyricVault`
 
 ---
 
-## 📲 How to Install on Your Android Phone
+## 🌟 Key Features (v1.6.0)
 
-### Method 1: Direct Download from Phone (Easiest)
-1. On your phone, connect to Wi-Fi and open:
-   ```text
-   http://192.168.1.20:3000/LyricVault.apk
-   ```
-   *(Or go to `http://192.168.1.20:3000` -> **Settings** -> tap **"Download Standalone APK"**)*.
-2. Tap the downloaded `.apk` file in your notifications or Files app.
-3. Tap **Install** *(allow "Install unknown apps" if prompted)*.
-4. Launch **LyricVault** from your Android **App Drawer**!
+### 1. Tabbed Lyric Notebook & Address-Book A–Z Index
+- **Physical Address-Book `A–Z` Index Tabs**: Vertical index tabs (`ALL`, `★`, `A`–`Z`, `#`) along the right edge of the Index screen let you jump directly to any letter or favorites.
+- **Large Open Song Binder Tabs**: Keep multiple songs open at once in the Notebook view and switch between them or close them easily with 50% larger touch-friendly binder tabs.
+- **Simplified Notebook Sheet**: Clean, distraction-free lyric sheet with font size controls (`A-` / `A+`), hands-free auto-scroll (`.5x`, `.75x`, `1x`, `2x`), favorite star, screen wake lock, and plain-text lyric editing.
+- **Android Safe-Area Padding**: Built-in status bar (`pt-safe-status`) and navigation bar (`pb-safe-nav`) spacing so UI controls never crowd system bars.
 
-### Method 2: Transfer via USB Cable
-1. Connect your phone to your PC via USB.
-2. Copy `LyricVault.apk` from `C:\Users\David Coy\.gemini\antigravity\scratch\LyricVault\LyricVault.apk` to your phone's **Download** folder.
-3. On your phone, open **Files**, tap `LyricVault.apk`, and tap **Install**.
+### 2. Smart Band Deduplication, Sort Metadata Tags & Expanded LRCLIB Search
+- **Canonical Artist Unification**: Automatically unifies artist spelling variations (e.g., `AC DC`, `Ac-Dc`, `AC-DC`, `AC/DC` → `AC/DC`; `Beatles` / `The Beatles` → `The Beatles`).
+- **Dedicated Sort Tags (`artistSortName` & `trackSortName`)**: Bands starting with `"The "` are filed under their core name (`"The Beatles"` → `"Beatles, The"` under tab **`B`**; `"The Rolling Stones"` → `"Rolling Stones, The"` under tab **`R`**).
+- **Expanded LRCLIB Artist Search**: Automatically deduplicates remaster/album versions in search results, provides dedicated Artist & Song Title filter fields, and includes a **"Find More Songs on LRCLIB"** button to pull 50–100+ unique songs per artist.
+- **One-Tap Library Cleanup**: Run **"Deduplicate & Normalize Library"** in Settings anytime to merge duplicate artists and songs.
+
+### 3. True 100% Offline Local Storage
+- **IndexedDB (`LyricVaultDB`)**: Stores all lyrics, setlists, and linked audio files directly on your phone.
+- **Safe In-Place APK Updates**: Installing a new `LyricVault.apk` updates the app in place without erasing your saved songs or setlists.
+- **Preloaded "Top 100 Greatest Songs of All Time"**: Pre-seeded with 100 classic tracks and a ready-to-use setlist.
+
+### 4. GitHub Cloud App Updater (Settings)
+- **Live Version Check**: Checks `https://raw.githubusercontent.com/DavidMCoy/LyricVault/main/package.json` against the installed version (`v1.6.0`).
+- **Direct APK Updates**: Download the latest `LyricVault.apk` directly from `https://github.com/DavidMCoy/LyricVault/raw/main/LyricVault.apk`.
 
 ---
 
-## 🛠️ Build & Development Commands
+## 🛠️ Build & Push Workflow (`build-and-push.ps1`)
 
-From `C:\Users\David Coy\.gemini\antigravity\scratch\LyricVault`:
+To build the web assets, sync Capacitor, compile `LyricVault.apk` with Gradle, and push to GitHub in one step, run in PowerShell:
 
-### 1. Run Unit Tests
-```bash
-npm test
+```powershell
+powershell -ExecutionPolicy Bypass -File "C:\projects\active\LyricVault\build-and-push.ps1"
 ```
 
-### 2. Build Web / PWA Assets
-```bash
-npm run build
-```
+### Local Wi-Fi APK Preview Server
+To serve the project and `LyricVault.apk` over your local home Wi-Fi (`http://192.168.1.8:3000/LyricVault.apk`):
 
-### 3. Run Local Preview Server
-```bash
-npm run preview -- --host --port 3000
+```powershell
+cd "C:\projects\active\LyricVault"
+npx.cmd vite preview --host --port 3000
 ```
-
-### 4. Build Standalone Android APK (Gradle)
-```bash
-$env:JAVA_HOME = "$env:LOCALAPPDATA\jdk-21"
-$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-$env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:PATH"
-
-npx cap sync android
-cd android
-.\gradlew.bat assembleDebug
-```
-The compiled APK will be output to `android/app/build/outputs/apk/debug/app-debug.apk` and copied to `LyricVault.apk`.

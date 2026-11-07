@@ -30,7 +30,7 @@ export const SettingsView: React.FC = () => {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
-  const INSTALLED_VERSION = '1.5.0';
+  const INSTALLED_VERSION = '1.6.0';
   const GITHUB_APK_URL = 'https://github.com/DavidMCoy/LyricVault/raw/main/LyricVault.apk';
   const GITHUB_PKG_URL = 'https://raw.githubusercontent.com/DavidMCoy/LyricVault/main/package.json';
   const [latestGithubVersion, setLatestGithubVersion] = useState<string | null>(null);
