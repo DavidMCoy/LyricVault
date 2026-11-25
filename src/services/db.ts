@@ -89,6 +89,8 @@ export async function deduplicateAndNormalizeDatabase(): Promise<{
             : normalized.plainLyrics || existing.plainLyrics,
         syncedLyrics: existing.syncedLyrics || normalized.syncedLyrics,
         albumName: existing.albumName || normalized.albumName,
+        notes: existing.notes || normalized.notes,
+        scrollSpeed: existing.scrollSpeed || normalized.scrollSpeed,
         updatedAt: Math.max(existing.updatedAt || 0, normalized.updatedAt || 0),
       };
       seenByKey.set(key, merged);
@@ -240,6 +242,18 @@ export async function toggleFavorite(id: string): Promise<boolean> {
   const newFav = !song.isFavorite;
   await db.songs.update(id, { isFavorite: newFav, updatedAt: Date.now() });
   return newFav;
+}
+
+export async function updateSongScrollSpeed(id: string, scrollSpeed: number): Promise<void> {
+  const song = await db.songs.get(id);
+  if (!song) return;
+  await db.songs.update(id, { scrollSpeed, updatedAt: Date.now() });
+}
+
+export async function updateSongNotes(id: string, notes: string): Promise<void> {
+  const song = await db.songs.get(id);
+  if (!song) return;
+  await db.songs.update(id, { notes: notes.trim(), updatedAt: Date.now() });
 }
 
 export async function searchLocalSongs(query: string, filterFavorite = false): Promise<Song[]> {

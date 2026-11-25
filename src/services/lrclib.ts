@@ -109,7 +109,7 @@ async function fetchLrclibEndpoint(params: URLSearchParams, timeoutMs = 10000): 
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'LyricVault-Android/1.6.0 (https://github.com/DavidMCoy/LyricVault)',
+        'User-Agent': 'LyricVault-Android/1.7.0 (https://github.com/DavidMCoy/LyricVault)',
       },
     });
     clearTimeout(timeoutId);

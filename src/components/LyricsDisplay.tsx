@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Play, Pause, ArrowLeft, Zap, Star, Edit3, X, Plus, BookOpen
+  Play, Pause, ArrowLeft, Sun, Moon, Star, Edit3, X, Plus, BookOpen,
+  ChevronLeft, ChevronRight, StickyNote, Check
 } from 'lucide-react';
 import { Song, FontSizeOption } from '../types/lyrics';
 import { parseLRC } from '../utils/lrcParser';
 import { wakeLock } from '../utils/wakeLock';
-import { toggleFavorite } from '../services/db';
+import { toggleFavorite, updateSongScrollSpeed, updateSongNotes } from '../services/db';
 
 interface LyricsDisplayProps {
   song: Song | null;
@@ -14,7 +15,15 @@ interface LyricsDisplayProps {
   onCloseOpenSong?: (songId: string, e: React.MouseEvent) => void;
   onBack: () => void;
   onEditSong?: (song: Song) => void;
+  onUpdateSong?: (song: Song) => void;
 }
+
+const FONT_SIZE_STORAGE_KEY = 'lyricvault_font_size_v1';
+const WAKE_LOCK_STORAGE_KEY = 'lyricvault_wake_lock_v1';
+const VALID_FONT_SIZES: FontSizeOption[] = ['sm', 'base', 'lg', 'xl', '2xl', '3xl'];
+
+// Matches section headers like "[Chorus]", "[Verse 1]", "(Bridge)", "Chorus:", "Verse 2:"
+const SECTION_HEADER_REGEX = /^\s*(\[[^\]]+\]|\((?:Verse|Chorus|Bridge|Intro|Outro|Solo|Pre-Chorus|Interlude|Hook|Refrain|Instrumental|Coda|Tag)[^)]*\)|(?:Verse|Chorus|Bridge|Intro|Outro|Pre-Chorus|Solo|Interlude|Refrain|Hook)(?:\s+\d+)?\s*:?)\s*$/i;
 
 const TAB_ACCENTS = [
   'border-t-amber-400',
@@ -31,6 +40,7 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
   onCloseOpenSong,
   onBack,
   onEditSong,
+  onUpdateSong,
 }) => {
   if (!song) {
     return (
@@ -53,20 +63,73 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
   }
 
   const [currentSong, setCurrentSong] = useState<Song>(song);
-  const [fontSize, setFontSize] = useState<FontSizeOption>('lg');
-  const [isWakeLockActive, setIsWakeLockActive] = useState<boolean>(true);
-  const [teleprompterSpeed, setTeleprompterSpeed] = useState<number>(1);
+  const [fontSize, setFontSize] = useState<FontSizeOption>(() => {
+    try {
+      const saved = localStorage.getItem(FONT_SIZE_STORAGE_KEY) as FontSizeOption | null;
+      if (saved && VALID_FONT_SIZES.includes(saved)) return saved;
+    } catch (e) {}
+    return 'lg';
+  });
+  const [isWakeLockActive, setIsWakeLockActive] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(WAKE_LOCK_STORAGE_KEY);
+      if (saved !== null) return saved === 'true';
+    } catch (e) {}
+    return true;
+  });
+  const [teleprompterSpeed, setTeleprompterSpeed] = useState<number>(song.scrollSpeed || 1);
   const [isAutoScrolling, setIsAutoScrolling] = useState<boolean>(false);
+  const [isEditingNote, setIsEditingNote] = useState<boolean>(false);
+  const [noteDraft, setNoteDraft] = useState<string>(song.notes || '');
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrollIntervalRef = useRef<any>(null);
 
-  // Sync when song prop changes
+  // Sync when song prop changes (restoring per-song saved scroll speed and notes)
   useEffect(() => {
     setCurrentSong(song);
+    setTeleprompterSpeed(song.scrollSpeed || 1);
+    setNoteDraft(song.notes || '');
+    setIsEditingNote(false);
     setIsAutoScrolling(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [song]);
+
+  // Persist font size choice across restarts
+  const handleChangeFontSize = (nextSize: FontSizeOption) => {
+    setFontSize(nextSize);
+    try {
+      localStorage.setItem(FONT_SIZE_STORAGE_KEY, nextSize);
+    } catch (e) {}
+  };
+
+  // Persist wake lock toggle across restarts
+  const handleToggleWakeLock = () => {
+    const next = !isWakeLockActive;
+    setIsWakeLockActive(next);
+    try {
+      localStorage.setItem(WAKE_LOCK_STORAGE_KEY, String(next));
+    } catch (e) {}
+  };
+
+  // Save per-song scroll speed to IndexedDB
+  const handleSelectScrollSpeed = async (speedValue: number) => {
+    setTeleprompterSpeed(speedValue);
+    const updated: Song = { ...currentSong, scrollSpeed: speedValue };
+    setCurrentSong(updated);
+    onUpdateSong?.(updated);
+    await updateSongScrollSpeed(currentSong.id, speedValue);
+  };
+
+  // Save inline performance note to IndexedDB
+  const handleSaveInlineNote = async () => {
+    const cleaned = noteDraft.trim();
+    const updated: Song = { ...currentSong, notes: cleaned };
+    setCurrentSong(updated);
+    setIsEditingNote(false);
+    onUpdateSong?.(updated);
+    await updateSongNotes(currentSong.id, cleaned);
+  };
 
   // Screen Wake Lock
   useEffect(() => {
@@ -104,8 +167,18 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
 
   const handleToggleFav = async () => {
     const newFav = await toggleFavorite(currentSong.id);
-    setCurrentSong(prev => ({ ...prev, isFavorite: newFav }));
+    const updated = { ...currentSong, isFavorite: newFav };
+    setCurrentSong(updated);
+    onUpdateSong?.(updated);
   };
+
+  // Current tab index for Previous / Next navigation at the bottom of the sheet
+  const currentTabIndex = openSongs.findIndex((s) => s.id === currentSong.id);
+  const prevOpenSong = currentTabIndex > 0 ? openSongs[currentTabIndex - 1] : null;
+  const nextOpenSong =
+    currentTabIndex >= 0 && currentTabIndex < openSongs.length - 1
+      ? openSongs[currentTabIndex + 1]
+      : null;
 
   // Extract clean plain text lyrics (stripping any LRC timestamps if plainLyrics is empty)
   const cleanLyrics = React.useMemo(() => {
@@ -185,9 +258,8 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
           <div className="flex items-center gap-1">
             <button
               onClick={() => {
-                const sizes: FontSizeOption[] = ['sm', 'base', 'lg', 'xl', '2xl', '3xl'];
-                const currIdx = sizes.indexOf(fontSize);
-                if (currIdx > 0) setFontSize(sizes[currIdx - 1]);
+                const currIdx = VALID_FONT_SIZES.indexOf(fontSize);
+                if (currIdx > 0) handleChangeFontSize(VALID_FONT_SIZES[currIdx - 1]);
               }}
               className="px-2.5 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 font-bold text-xs flex items-center justify-center active:scale-95"
               title="Decrease Font Size"
@@ -196,9 +268,8 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
             </button>
             <button
               onClick={() => {
-                const sizes: FontSizeOption[] = ['sm', 'base', 'lg', 'xl', '2xl', '3xl'];
-                const currIdx = sizes.indexOf(fontSize);
-                if (currIdx < sizes.length - 1) setFontSize(sizes[currIdx + 1]);
+                const currIdx = VALID_FONT_SIZES.indexOf(fontSize);
+                if (currIdx < VALID_FONT_SIZES.length - 1) handleChangeFontSize(VALID_FONT_SIZES[currIdx + 1]);
               }}
               className="px-2.5 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 font-bold text-xs flex items-center justify-center active:scale-95"
               title="Increase Font Size"
@@ -207,7 +278,7 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
             </button>
           </div>
 
-          {/* Hands-Free Auto-Scroll Controls */}
+          {/* Hands-Free Auto-Scroll Controls (Per-Song Saved Speed) */}
           <div className="flex items-center gap-1.5 bg-neutral-950/80 border border-neutral-800 rounded-xl px-2 py-1">
             <button
               onClick={() => setIsAutoScrolling(!isAutoScrolling)}
@@ -229,20 +300,21 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
             ].map((spd) => (
               <button
                 key={spd.value}
-                onClick={() => setTeleprompterSpeed(spd.value)}
+                onClick={() => handleSelectScrollSpeed(spd.value)}
                 className={`px-2 h-6 min-w-[28px] rounded-md text-[11px] font-bold transition-colors ${
                   teleprompterSpeed === spd.value
                     ? 'bg-amber-500/20 border border-amber-500/50 text-amber-300'
                     : 'text-neutral-400 hover:text-neutral-200'
                 }`}
+                title={`Set saved scroll speed for this song to ${spd.label}`}
               >
                 {spd.label}
               </button>
             ))}
           </div>
 
-          {/* Right Action Icons: Favorite, Edit, Screen Awake */}
-          <div className="flex items-center gap-1">
+          {/* Right Action Icons: Favorite, Edit, Clear Labeled Screen Awake Pill */}
+          <div className="flex items-center gap-1.5">
             <button
               onClick={handleToggleFav}
               className={`p-1.5 rounded-lg transition-all ${
@@ -264,13 +336,29 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
             )}
 
             <button
-              onClick={() => setIsWakeLockActive(!isWakeLockActive)}
-              title={isWakeLockActive ? 'Screen Awake ON' : 'Screen Awake OFF'}
-              className={`p-1.5 rounded-lg transition-all ${
-                isWakeLockActive ? 'text-emerald-400 bg-emerald-950/40' : 'text-neutral-500'
+              onClick={handleToggleWakeLock}
+              title={
+                isWakeLockActive
+                  ? 'Screen stays awake while viewing lyrics (tap to allow normal sleep)'
+                  : 'Normal screen timeout (tap to keep screen awake)'
+              }
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 border transition-all active:scale-95 ${
+                isWakeLockActive
+                  ? 'text-emerald-300 bg-emerald-950/50 border-emerald-700/60'
+                  : 'text-neutral-400 bg-neutral-800/80 border-neutral-700'
               }`}
             >
-              <Zap className="w-4 h-4" />
+              {isWakeLockActive ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Awake</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-neutral-400" />
+                  <span>Auto</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -289,25 +377,146 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({
             <span className="w-2.5 h-2.5 rounded-full bg-neutral-950 border border-neutral-700" />
           </div>
 
-          {/* Song Title & Artist Header on the Notebook Sheet */}
-          <div className="pl-10 sm:pl-12 pr-5 pt-5 pb-4 border-b border-neutral-800/90 bg-neutral-900">
-            <h1 className="text-lg sm:text-xl font-extrabold text-neutral-100 break-words leading-snug">
-              {currentSong.trackName}
-            </h1>
-            <p className="text-xs sm:text-sm text-amber-400/90 font-semibold break-words mt-1">
-              {currentSong.artistName}
-              {currentSong.albumName ? (
-                <span className="text-neutral-400 font-normal"> • {currentSong.albumName}</span>
-              ) : null}
-            </p>
+          {/* Song Title, Artist & Performance Notes Header on the Notebook Sheet */}
+          <div className="pl-10 sm:pl-12 pr-5 pt-5 pb-4 border-b border-neutral-800/90 bg-neutral-900 space-y-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl font-extrabold text-neutral-100 break-words leading-snug">
+                  {currentSong.trackName}
+                </h1>
+                <p className="text-xs sm:text-sm text-amber-400/90 font-semibold break-words mt-1">
+                  {currentSong.artistName}
+                  {currentSong.albumName ? (
+                    <span className="text-neutral-400 font-normal"> • {currentSong.albumName}</span>
+                  ) : null}
+                </p>
+              </div>
+
+              {!isEditingNote && (
+                <button
+                  onClick={() => {
+                    setNoteDraft(currentSong.notes || '');
+                    setIsEditingNote(true);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 text-[11px] font-semibold text-amber-300 flex items-center gap-1 shrink-0 active:scale-95"
+                  title="Add or edit performance notes (Capo, Key, Tempo)"
+                >
+                  <StickyNote className="w-3 h-3 text-amber-400" />
+                  <span>{currentSong.notes ? 'Edit Note' : '+ Note'}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Performance Note Display or Inline Editor */}
+            {isEditingNote ? (
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="text"
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  placeholder="Performance note (e.g. Capo 2 • Key of G • Start slow)..."
+                  className="flex-1 bg-neutral-950 border border-amber-500/60 rounded-xl px-3 py-1.5 text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveInlineNote();
+                    if (e.key === 'Escape') setIsEditingNote(false);
+                  }}
+                />
+                <button
+                  onClick={handleSaveInlineNote}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500 text-black font-bold text-xs flex items-center gap-1 shrink-0 active:scale-95"
+                >
+                  <Check className="w-3.5 h-3.5" /> Save
+                </button>
+                <button
+                  onClick={() => setIsEditingNote(false)}
+                  className="p-1.5 rounded-xl bg-neutral-800 text-neutral-400 hover:text-neutral-200 shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : currentSong.notes ? (
+              <div
+                onClick={() => {
+                  setNoteDraft(currentSong.notes || '');
+                  setIsEditingNote(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-200 text-xs font-medium cursor-pointer hover:bg-amber-500/20 transition-colors"
+                title="Tap to edit note"
+              >
+                <StickyNote className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>{currentSong.notes}</span>
+              </div>
+            ) : null}
           </div>
 
-          {/* Lyrics Content Area */}
+          {/* Lyrics Content Area with Automatic [Verse] / [Chorus] Section Header Styling */}
           <div className="pl-10 sm:pl-12 pr-5 py-6">
-            <div className={`whitespace-pre-wrap break-words text-neutral-100 font-sans tracking-wide ${fontSizes[fontSize]}`}>
-              {cleanLyrics}
+            <div className={`break-words text-neutral-100 font-sans tracking-wide ${fontSizes[fontSize]}`}>
+              {cleanLyrics.split('\n').map((line, idx) => {
+                const trimmed = line.trim();
+                if (!trimmed) {
+                  return <div key={idx} className="h-4" />;
+                }
+                if (SECTION_HEADER_REGEX.test(trimmed)) {
+                  return (
+                    <div
+                      key={idx}
+                      className="mt-5 first:mt-0 mb-1.5 inline-block px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/35 text-amber-300 font-extrabold text-xs sm:text-sm uppercase tracking-wider"
+                    >
+                      {trimmed.replace(/^\[|\]$/g, '')}
+                    </div>
+                  );
+                }
+                return (
+                  <div key={idx} className="whitespace-pre-wrap">
+                    {line}
+                  </div>
+                );
+              })}
             </div>
           </div>
+
+          {/* Bottom Previous / Next Open Tab Navigation Footer */}
+          {openSongs.length > 1 && onSelectOpenSong && (
+            <div className="pl-10 sm:pl-12 pr-5 py-4 border-t border-neutral-800/90 bg-neutral-950/60 flex items-center justify-between gap-2">
+              <button
+                onClick={() => prevOpenSong && onSelectOpenSong(prevOpenSong)}
+                disabled={!prevOpenSong}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 disabled:opacity-35 disabled:pointer-events-none border border-neutral-800 text-left flex items-center gap-2 active:scale-98 transition-all min-w-0"
+              >
+                <ChevronLeft className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-bold">
+                    Previous Tab
+                  </div>
+                  <div className="text-xs font-bold text-neutral-100 truncate">
+                    {prevOpenSong ? prevOpenSong.trackName : 'Start of Tabs'}
+                  </div>
+                </div>
+              </button>
+
+              <div className="text-[11px] font-bold text-neutral-400 px-2 shrink-0">
+                {currentTabIndex + 1} / {openSongs.length}
+              </div>
+
+              <button
+                onClick={() => nextOpenSong && onSelectOpenSong(nextOpenSong)}
+                disabled={!nextOpenSong}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 disabled:opacity-35 disabled:pointer-events-none border border-neutral-800 text-right flex items-center justify-end gap-2 active:scale-98 transition-all min-w-0"
+              >
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-bold">
+                    Next Tab
+                  </div>
+                  <div className="text-xs font-bold text-amber-300 truncate">
+                    {nextOpenSong ? nextOpenSong.trackName : 'End of Tabs'}
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-amber-400 shrink-0" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

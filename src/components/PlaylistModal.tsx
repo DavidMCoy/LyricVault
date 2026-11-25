@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, ListMusic, Trash2, X, Check, Play, Users, Sparkles } from 'lucide-react';
+import { Plus, ListMusic, Trash2, X, Check, Play, Users, Sparkles, BookOpen } from 'lucide-react';
 import { Playlist, Song } from '../types/lyrics';
 import { db, importSpotifyTop100Data } from '../services/db';
 import {
@@ -12,10 +12,14 @@ import confetti from 'canvas-confetti';
 
 interface PlaylistsViewProps {
   onSelectSong: (song: Song) => void;
+  onOpenSetlistAsTabs?: (songs: Song[]) => void;
   onClose?: () => void;
 }
 
-export const PlaylistsView: React.FC<PlaylistsViewProps> = ({ onSelectSong }) => {
+export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
+  onSelectSong,
+  onOpenSetlistAsTabs,
+}) => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [activePlaylist, setActivePlaylist] = useState<Playlist | null>(null);
   const [playlistSongs, setPlaylistSongs] = useState<Song[]>([]);
@@ -248,12 +252,23 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({ onSelectSong }) =>
               </h3>
             </div>
             {playlistSongs.length > 0 && (
-              <button
-                onClick={() => onSelectSong(playlistSongs[0])}
-                className="px-3 py-1.5 rounded-xl bg-emerald-500 text-black font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-md shadow-emerald-950 active:scale-95"
-              >
-                <Play className="w-3.5 h-3.5 fill-black" /> Play Setlist
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {onOpenSetlistAsTabs && (
+                  <button
+                    onClick={() => onOpenSetlistAsTabs(playlistSongs)}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-md shadow-amber-950 active:scale-95"
+                    title="Open setlist songs as Notebook tabs in order"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" /> Open Setlist in Tabs
+                  </button>
+                )}
+                <button
+                  onClick={() => onSelectSong(playlistSongs[0])}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-500 text-black font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-md shadow-emerald-950 active:scale-95"
+                >
+                  <Play className="w-3.5 h-3.5 fill-black" /> First Song
+                </button>
+              </div>
             )}
           </div>
 

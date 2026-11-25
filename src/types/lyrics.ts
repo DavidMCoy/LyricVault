@@ -24,7 +24,8 @@ export interface Song {
   audioFileName?: string;
   audioFileBlobKey?: string; // Key in IndexedDB audio storage
   offsetMs?: number; // Timing offset in milliseconds
-  notes?: string;
+  notes?: string; // Performance notes (e.g. "Capo 2 • Key of G")
+  scrollSpeed?: number; // Per-song saved auto-scroll speed (0.5, 0.75, 1, 2)
 }
 
 export interface SearchResultItem {

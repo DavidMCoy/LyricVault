@@ -1,4 +1,4 @@
-# LyricVault (v1.6.0) — Standalone Offline Android Lyrics Notebook
+# LyricVault (v1.7.0) — Standalone Offline Android Lyrics Notebook
 
 **LyricVault** is a standalone, offline-first Android application designed as a physical **Tabbed Lyric Notebook**. It lets you search, store locally, organize, and read song lyrics offline, powered by **LRCLIB** and open lyrics databases.
 
@@ -7,12 +7,13 @@
 
 ---
 
-## 🌟 Key Features (v1.6.0)
+## 🌟 Key Features (v1.7.0)
 
 ### 1. Tabbed Lyric Notebook & Address-Book A–Z Index
 - **Physical Address-Book `A–Z` Index Tabs**: Vertical index tabs (`ALL`, `★`, `A`–`Z`, `#`) along the right edge of the Index screen let you jump directly to any letter or favorites.
-- **Large Open Song Binder Tabs**: Keep multiple songs open at once in the Notebook view and switch between them or close them easily with 50% larger touch-friendly binder tabs.
-- **Simplified Notebook Sheet**: Clean, distraction-free lyric sheet with font size controls (`A-` / `A+`), hands-free auto-scroll (`.5x`, `.75x`, `1x`, `2x`), favorite star, screen wake lock, and plain-text lyric editing.
+- **Large Persistent Open Song Binder Tabs**: Keep multiple songs open at once in the Notebook view, switch between them using the top binder tab strip or bottom **`← Previous Tab` / `Next Tab →`** buttons, and automatically restore your open tabs and font size across app restarts.
+- **Open Setlist in Tabs**: Load an entire Setlist into your Notebook binder tabs in order with one tap.
+- **Simplified Notebook Sheet**: Clean, distraction-free lyric sheet with persistent font size controls (`A-` / `A+`), **per-song saved auto-scroll speeds** (`.5x`, `.75x`, `1x`, `2x`), inline **Performance Notes** (`Capo 2 • Key of G`), automatic **`[Verse]` / `[Chorus]` section header badges**, favorite star, clear **`☀️ Awake` / `🌙 Auto`** screen wake-lock pill, and plain-text lyric editing.
 - **Android Safe-Area Padding**: Built-in status bar (`pt-safe-status`) and navigation bar (`pb-safe-nav`) spacing so UI controls never crowd system bars.
 
 ### 2. Smart Band Deduplication, Sort Metadata Tags & Expanded LRCLIB Search
@@ -27,7 +28,7 @@
 - **Preloaded "Top 100 Greatest Songs of All Time"**: Pre-seeded with 100 classic tracks and a ready-to-use setlist.
 
 ### 4. GitHub Cloud App Updater (Settings)
-- **Live Version Check**: Checks `https://raw.githubusercontent.com/DavidMCoy/LyricVault/main/package.json` against the installed version (`v1.6.0`).
+- **Live Version Check**: Checks `https://raw.githubusercontent.com/DavidMCoy/LyricVault/main/package.json` against the installed version (`v1.7.0`).
 - **Direct APK Updates**: Download the latest `LyricVault.apk` directly from `https://github.com/DavidMCoy/LyricVault/raw/main/LyricVault.apk`.
 
 ---

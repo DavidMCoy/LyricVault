@@ -45,6 +45,8 @@ export const LrcEditor: React.FC<LrcEditorProps> = ({
   const [isArtistSortCustom, setIsArtistSortCustom] = useState(Boolean(initialSong?.artistSortName));
   const [isTrackSortCustom, setIsTrackSortCustom] = useState(Boolean(initialSong?.trackSortName));
   const [albumName, setAlbumName] = useState(initialSong?.albumName || '');
+  const [notes, setNotes] = useState(initialSong?.notes || '');
+  const [scrollSpeed, setScrollSpeed] = useState<number>(initialSong?.scrollSpeed || 1);
   const [plainLyricsText, setPlainLyricsText] = useState(getInitialPlainLyrics);
 
   const handleArtistChange = (val: string) => {
@@ -94,6 +96,8 @@ export const LrcEditor: React.FC<LrcEditorProps> = ({
       addedAt: initialSong?.addedAt || Date.now(),
       updatedAt: Date.now(),
       isFavorite: initialSong?.isFavorite || false,
+      notes: notes.trim(),
+      scrollSpeed,
     };
 
     const savedId = await saveSong(songToSave);
@@ -208,6 +212,48 @@ export const LrcEditor: React.FC<LrcEditorProps> = ({
                 placeholder="e.g. Sound of Silence, The"
                 className="w-full bg-neutral-950/80 border border-neutral-800 rounded-xl px-2.5 py-1.5 text-xs text-amber-300 focus:outline-none focus:border-amber-500 mt-1"
               />
+            </div>
+          </div>
+
+          {/* Performance Notes & Default Scroll Speed */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
+            <div className="sm:col-span-2">
+              <label className="text-[10px] text-neutral-400 font-medium">
+                Performance Notes <span className="text-neutral-500">(Capo, Key, Tempo, Cues)</span>
+              </label>
+              <input
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. Capo 2 • Key of G • Slow intro"
+                className="w-full bg-neutral-950/80 border border-neutral-800 rounded-xl px-2.5 py-1.5 text-xs text-neutral-100 focus:outline-none focus:border-amber-500 mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-neutral-400 font-medium">
+                Saved Auto-Scroll Speed
+              </label>
+              <div className="flex items-center gap-1 mt-1">
+                {[
+                  { value: 0.5, label: '.5x' },
+                  { value: 0.75, label: '.75x' },
+                  { value: 1, label: '1x' },
+                  { value: 2, label: '2x' },
+                ].map((spd) => (
+                  <button
+                    key={spd.value}
+                    type="button"
+                    onClick={() => setScrollSpeed(spd.value)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                      scrollSpeed === spd.value
+                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                        : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-neutral-200'
+                    }`}
+                  >
+                    {spd.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

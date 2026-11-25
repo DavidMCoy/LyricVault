@@ -9,23 +9,51 @@ import { SettingsView } from './components/SettingsView';
 import { Song } from './types/lyrics';
 import { initDatabaseDefaults, getLocalSongs } from './services/db';
 
+const OPEN_TABS_STORAGE_KEY = 'lyricvault_open_song_ids_v1';
+const ACTIVE_TAB_STORAGE_KEY = 'lyricvault_active_song_id_v1';
+
 export function App() {
   const [currentTab, setCurrentTab] = useState<NavTab>('library');
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [openSongs, setOpenSongs] = useState<Song[]>([]);
   const [activeSong, setActiveSong] = useState<Song | null>(null);
+  const [isHydrated, setIsHydrated] = useState<boolean>(false);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [songForPlaylist, setSongForPlaylist] = useState<Song | null>(null);
 
-  // Initialize offline IndexedDB defaults
+  // Initialize offline IndexedDB defaults and restore open binder tabs from localStorage
   useEffect(() => {
     initDatabaseDefaults().then(async () => {
       const songs = await getLocalSongs();
-      if (songs.length > 0 && !activeSong) {
-        setActiveSong(songs[0]);
-        setOpenSongs([songs[0]]);
+      if (songs.length > 0) {
+        const songById = new Map(songs.map((s) => [s.id, s]));
+        let restoredOpen: Song[] = [];
+        try {
+          const rawIds = localStorage.getItem(OPEN_TABS_STORAGE_KEY);
+          if (rawIds) {
+            const parsedIds: string[] = JSON.parse(rawIds);
+            if (Array.isArray(parsedIds)) {
+              restoredOpen = parsedIds
+                .map((id) => songById.get(id))
+                .filter((s): s is Song => Boolean(s));
+            }
+          }
+        } catch (e) {}
+
+        if (restoredOpen.length === 0) {
+          restoredOpen = [songs[0]];
+        }
+
+        const savedActiveId = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+        const restoredActive =
+          (savedActiveId && restoredOpen.find((s) => s.id === savedActiveId)) ||
+          restoredOpen[0];
+
+        setOpenSongs(restoredOpen);
+        setActiveSong(restoredActive || null);
       }
+      setIsHydrated(true);
     });
 
     const handleOnline = () => setIsOnline(true);
@@ -40,17 +68,46 @@ export function App() {
     };
   }, []);
 
+  // Persist open binder tab IDs and active song ID across app restarts
+  useEffect(() => {
+    if (!isHydrated) return;
+    try {
+      localStorage.setItem(
+        OPEN_TABS_STORAGE_KEY,
+        JSON.stringify(openSongs.map((s) => s.id))
+      );
+      if (activeSong) {
+        localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, activeSong.id);
+      } else {
+        localStorage.removeItem(ACTIVE_TAB_STORAGE_KEY);
+      }
+    } catch (e) {}
+  }, [openSongs, activeSong, isHydrated]);
+
   const handleSelectSong = (song: Song) => {
     setOpenSongs((prev) => {
       const exists = prev.some((s) => s.id === song.id);
       if (exists) {
         return prev.map((s) => (s.id === song.id ? song : s));
       }
-      // Keep up to 12 open tabs
-      return [...prev.slice(-11), song];
+      // Keep up to 15 open tabs
+      return [...prev.slice(-14), song];
     });
     setActiveSong(song);
     setCurrentTab('player');
+  };
+
+  const handleOpenSetlistAsTabs = (songsToOpen: Song[]) => {
+    if (!songsToOpen || songsToOpen.length === 0) return;
+    const capped = songsToOpen.slice(0, 20);
+    setOpenSongs(capped);
+    setActiveSong(capped[0]);
+    setCurrentTab('player');
+  };
+
+  const handleUpdateSongInMemory = (updated: Song) => {
+    setActiveSong((prev) => (prev && prev.id === updated.id ? updated : prev));
+    setOpenSongs((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
   };
 
   const handleCloseOpenSong = (songId: string, e: React.MouseEvent) => {
@@ -134,6 +191,7 @@ export function App() {
             {currentTab === 'playlists' && (
               <PlaylistsView
                 onSelectSong={handleSelectSong}
+                onOpenSetlistAsTabs={handleOpenSetlistAsTabs}
               />
             )}
 
@@ -145,6 +203,7 @@ export function App() {
                 onCloseOpenSong={handleCloseOpenSong}
                 onBack={() => setCurrentTab('library')}
                 onEditSong={handleEditSong}
+                onUpdateSong={handleUpdateSongInMemory}
               />
             )}
 
